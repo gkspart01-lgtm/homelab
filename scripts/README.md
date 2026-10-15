@@ -10,3 +10,4 @@ Alle Skripte stammen aus dem tatsächlichen Aufbau und sind **sanitisiert**: Pas
 | `forgejo-fix.sh` | Nacharbeiten: `app.ini` dem Benutzer `git` geben, Unit mit `ProtectSystem=strict` + `ReadWritePaths`, nginx neu starten, Admin anlegen, verifizieren | im LXC-Container als root |
 | `haos-vm.sh` | Home Assistant OS: Image prüfen/entpacken, VM mit UEFI (OVMF) + q35 anlegen, Disk auf 32 GB, GPT anpassen, starten | auf einem **UEFI-fähigen** Proxmox-Host als root |
 | `pve-api.py` | Minimaler Proxmox-API-Client (Ticket-Auth) für Umgebungen, in denen nur die REST-API erreichbar ist | überall, Passwort via `PVE_PASSWORD` |
+| `ha-console.sh` | Tastendrücke per QEMU-Monitor (`sendkey`) in die HAOS-Konsole senden und ein Bildschirmfoto zurückholen — nützlich, um in einer VM ohne SSH Kommandos wie `core info` abzusetzen | auf dem Proxmox-Host, der die HA-VM trägt |

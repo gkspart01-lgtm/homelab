@@ -43,7 +43,9 @@ Hier die wichtigsten Nachweise mit den tatsächlichen Ergebnissen.
 | HAOS-Image in `hl01` | `qz -t`, Import, Boot mit q35/OVMF bzw. i440fx | hängt ohne Kernel-Ausgabe; kein DHCP ⇒ kein Boot |
 | SeaBIOS-Versuch | `bios seabios` mit dem generischen Image | hängt bei `Booting from Hard Disk...` (Images sind UEFI-only, kein BIOS-Bootloader) |
 | HAOS auf `pve` | Import, 32 GB, `sgdisk -e`, Start | Konsole: `Booting 'Slot A (OK=1 TRY=1)'`, DHCP-Lease **192.168.178.71**, Port 8123 offen, Observer: `Supervisor: Connected / Health: Healthy` |
-| Core-Installation | HAOS-Konsole (`ha >`) | `OS Version: Home Assistant OS 18.3`, `System is ready! Use browser or app to configure.` — Core wird beim ersten Aufruf der UI eingerichtet |
+| Core-Installation | HAOS-Konsole (`core info`, Tasten per QEMU-Monitor gesendet) | `OS Version: Home Assistant OS 18.3`, `version: landingpage` → nach dem Download `version_latest: 2026.10.1` |
+| Onboarding | `GET /api/onboarding` vor/nach den Aufrufen | vorher 4 offene Schritte, nachher alle vier `done` |
+| Login | `POST /auth/login_flow` + `/auth/token` mit dem angelegten Konto | gültiges Token, `GET /api/config` → `version 2026.10.1`, metrische Einheiten |
 
 ## Reproduzierbarkeit
 
@@ -56,4 +58,5 @@ Alle Skripte liegen unter [`scripts/`](../scripts/):
 | `forgejo-install.sh` | Forgejo-Binary + systemd + nginx im Container |
 | `forgejo-fix.sh` | Nacharbeiten (app.ini-Rechte, Unit mit `ReadWritePaths`, nginx-Reload, Admin-Konto) |
 | `haos-vm.sh` | HAOS-Image importieren und VM erzeugen (Zielhost: UEFI-fähig!) |
+| `ha-console.sh` | Kommandos in die Konsole einer VM tippen (QEMU-Monitor `sendkey`) und Bildschirmfoto auswerten | auf dem Proxmox-Host |
 | `pve-api.py` | kleiner Ticket-Auth-API-Client, mit dem der Agent ohne `qm`-Rechte arbeitet |

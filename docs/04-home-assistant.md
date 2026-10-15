@@ -3,10 +3,11 @@
 | | |
 |---|---|
 | Gast | VM **105** `homeassistant` auf dem **Host `pve`** (192.168.181.10) |
-| System | Home Assistant OS **18.3** (offizielles `haos_ova-18.3.qcow2`) |
+| System | Home Assistant OS **18.3** mit Home Assistant Core **2026.10.1** |
 | Ressourcen | 2 vCPU, 2 GB RAM, 32 GB Disk, UEFI (OVMF) + q35, `onboot=1` |
-| Adresse | **http://192.168.178.71:8123** (DHCP-Lease der Fritz!Box) |
-| Zugang | Onboarding-Assistent beim ersten Aufruf (Eigentümer-Konto selbst anlegen) |
+| Adresse | **http://192.168.178.71** (DHCP-Lease der Fritz!Box; Port 8123 leitet dorthin um) |
+| Zugang | Eigentümer-Konto `falko` (Passwort wie separat übergeben — bewusst nicht im öffentlichen Repo) |
+| Status | Onboarding abgeschlossen (Benutzer, Core-Konfiguration, Analytics, Integration) |
 
 ## Warum auf `pve` und nicht in `hl01`
 
@@ -52,13 +53,29 @@ Wichtig bei HAOS: das Image bringt seine Partitionen (hassos-boot, kernel0/1, sy
 overlay, data) mit einer **kleinen** GPT mit; die Datenpartition wird von HAOS beim ersten Start auf die
 Diskgröße erweitert. Deshalb vor dem ersten Start auf 32 GB vergrößern und die GPT konsistent ziehen.
 
-## Inbetriebnahme
+## Inbetriebnahme (durchgeführt)
 
-1. VM starten, ~2–5 Minuten warten. HAOS zieht beim ersten Start den Home-Assistant-Core-Container
-   aus dem Internet (dauert eine Weile), erst danach öffnet Port 8123.
-2. IP ermitteln: DHCP-Lease am Router **oder** MAC aus `qm config 105 | grep net0`
-   (`BC:24:11:94:77:EB`) im ARP-Cache suchen.
-3. `http://<ip>:8123` aufrufen → Onboarding: Name, Benutzer, Passwort, Standort festlegen.
+1. VM gestartet; HAOS hat Supervisor gestartet und den Home-Assistant-Core (Version **2026.10.1**)
+   aus dem Netz gezogen. Während dieser Installation meldet die Konsole `Home Assistant Core: landingpage`.
+   Nachprüfbar per Konsole: `core info` (dort steht `version_latest`), bzw. an der API-Antwort auf
+   `GET /api/onboarding`.
+2. IP ermittelt: DHCP-Lease der Fritz!Box, gegengeprüft über die MAC aus `qm config 105 | grep net0`
+   (`BC:24:11:94:77:EB`) im ARP-Cache → **192.168.178.71**.
+3. **Onboarding über die REST-API abgeschlossen** (statt Klickorgie im Browser):
+   `POST /api/onboarding/users` (Konto `falko`, Sprache `de`) → `POST /auth/login_flow` +
+   `/auth/token` → `POST /api/onboarding/core_config`, `/api/onboarding/analytics`,
+   `/api/onboarding/integration`. Ergebnis: `GET /api/onboarding` meldet alle vier Schritte `done`.
+4. Anschließend geprüft: Login mit dem angelegten Konto liefert ein gültiges Token
+   (`POST /auth/login_flow` → `create_entry` → `/auth/token`), `GET /api/config` antwortet
+   `version: 2026.10.1`, `unit_system` metrisch (°C, km, g, L).
+
+**Noch offen (im UI in Sekunden erledigt):** Zeitzone steht auf `UTC` und die Oberflächensprache auf `en`
+(das Konto wurde mit `de` angelegt) → *Einstellungen → System → Allgemein* auf `Europe/Berlin` bzw.
+Deutsch stellen. Name der Installation ist noch „Home“.
+
+Nützlich: Kommandos lassen sich notfalls über die VM-Konsole absetzen (Proxmox-Konsole oder
+`ha-console.sh`-Muster: Tasten per QEMU-Monitor `sendkey …` senden) — so wurde u. a. `core info`
+ausgelesen, ohne Zugriff auf HAOS selbst.
 
 ## Raum für Verbesserungen
 
