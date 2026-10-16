@@ -113,6 +113,11 @@ resource "proxmox_virtual_environment_container" "lxc" {
     bridge = var.defaults.bridge
   }
 
+  operating_system {
+    template_file_id = each.value.template != "" ? each.value.template : var.defaults.lxc_template
+    type             = "debian"
+  }
+
   initialization {
     hostname = each.key
     ip_config {

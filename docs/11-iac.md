@@ -49,3 +49,21 @@ cd tofu && tofu plan && tofu apply
 4. Platten nach `docs/08-speicher.md` einhaengen, `/etc/snapraid.conf` uebernehmen.
 5. `tofu apply` (Gaeste neu), dann `restic restore` der Daten, dann `deploy.sh` je Stack.
 Was NICHT reproduzierbar ist, ist nur die Hardware selbst – alles andere ist Text.
+
+## Testen der Reproduzierbarkeit (Anker + Lab)
+
+Die Uebung findet in der Testumgebung statt, nicht auf dem Laptop – und sie wird
+**wiederholt**, bis sie ohne Handarbeit durchlaeuft:
+
+1. **Anker** – bare-Repo auf dem Proxmox-Host (`/root/git-anchor/homelab.git`,
+   `git daemon` auf 9418). Er ist die Quelle, aus der ein frischer Host klont,
+   auch wenn der Git-Host selbst gerade platt ist. Jeder Agent-Commit geht an
+   Forgejo *und* in den Anker.
+2. **Ziel** – die verschachtelte PVE-VM (`lab01`, VMID 101) ist der Stellvertreter
+   des Laptops und wird pro Runde geloescht.
+3. **Runde** – `lab/drill.sh` auf dem Anker-Host: Auto-Install-ISO bauen, VM frisch
+   installieren, Bootstrap ausfuehren, Repo klonen, `tofu plan` in Produktions-
+   groesse + `apply` in Laborgroesse, Pruefliste fahren, Ergebnis committen.
+
+Grenze des Labors: 4 GB RAM im Ziel gegen 16 GB auf dem Laptop. Das Labor beweist
+**Verfahren und Idempotenz**, die Produktionstarife laufen dort nur durch `plan`.

@@ -14,6 +14,7 @@ variable "defaults" {
     node         = string
     datastore    = string
     bridge       = string
+    lxc_template = string
     template_id  = number
     searchdomain = string
     gateway      = string
@@ -35,5 +36,6 @@ variable "guests" {
     tags         = optional(list(string), [])
     purpose      = optional(string, "")
     unprivileged = optional(bool, true)
+    template     = optional(string, "") # abweichendes LXC-Template
   }))
 }

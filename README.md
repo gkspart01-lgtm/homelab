@@ -68,3 +68,14 @@ stacks/               Docker-Compose-Stacks, ein Ordner pro Dienst
 secrets/              SOPS-Konfiguration (age) + Regeln
 scripts/              age-init.sh, deploy.sh
 ```
+
+## Anker und Lab: wie die Reproduzierbarkeit bewiesen wird
+
+* **Anker** (persistenter Klon-Ursprung, ueberlebt jeden Test-Wipe):
+  bare-Repo auf dem Proxmox-Host `pve` unter `/root/git-anchor/homelab.git`,
+  erreichbar als `git://192.168.181.10/homelab.git`. Der Agent pusht bei jedem
+  Commit an Forgejo **und** in den Anker (zwei push-URLs an einem Remote).
+* **Lab** (`lab/`): Skripte, die den Ziel-Host wiederholt komplett plattmachen und
+  aus diesem Repo neu aufbauen — Provision (Auto-Install-ISO) → Bootstrap →
+  Repo klonen → OpenTofu plan/apply → Pruefliste → Ergebnis als Markdown im Repo.
+  Einzelschritte und Grenzen des Labors: [lab/README.md](lab/README.md)
