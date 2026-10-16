@@ -1,0 +1,27 @@
+# Referenz-Stack: zeigt die Konventionen (Ports nur auf localhost, Traefik-Labels,
+# Volume auf dem SSD-Pool, Secrets aus SOPS).
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    env_file:
+      - .env            # per sops entschluesselt, im Git als .env.sops
+    environment:
+      DOMAIN: "https://vault.${DOMAIN_BASE}"
+      SIGNUPS_ALLOWED: "false"
+      ADMIN_TOKEN: "${VAULTWARDEN_ADMIN_TOKEN}"
+    volumes:
+      - /srv/ssd/vaultwarden:/data
+    ports:
+      - "127.0.0.1:8443:80"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.vaultwarden.rule=Host(`vault.${DOMAIN_BASE}`)
+      - traefik.http.routers.vaultwarden.entrypoints=websecure
+      - traefik.http.routers.vaultwarden.tls.certresolver=ionos
+    networks: [edge]
+
+networks:
+  edge:
+    external: true
