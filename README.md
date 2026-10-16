@@ -1,3 +1,33 @@
+# Homelab — Infrastructure as Code
+
+A self-hosted homelab that is **rebuildable from this repository**: Proxmox VE on a laptop,
+services in Docker Compose, secrets in SOPS+age, a dumb public edge on a small VPS behind CGNAT.
+Documentation is in English; the author writes German.
+
+## Start here
+
+| Document | Topic |
+|---|---|
+| [docs/13-architecture.md](docs/13-architecture.md) | **Architecture overview** — layers, diagrams, request paths, trust boundaries, failure domains, RAM budget |
+| [docs/14-setup-timeline.md](docs/14-setup-timeline.md) | **Build order** — phases P0–P9 with gates, dependencies and fallbacks |
+| [docs/15-service-choices.md](docs/15-service-choices.md) | **Tool choices** — pros/cons per option, the reason for each pick, and when to revisit it |
+| [docs/diagrams/architecture-overview.svg](docs/diagrams/architecture-overview.svg) | One-page diagram of the whole system |
+
+## Repository layout
+
+```
+hosts/spectre-x360/   unattended install answer file, bootstrap, snapraid/restic/systemd templates
+tofu/                 OpenTofu + bpg/proxmox: every VM and LXC, declarative
+cloud-init/           guest initialization templates
+stacks/               Docker Compose stacks, one directory per service
+secrets/              SOPS configuration (age) and the rules for it
+lab/                  drill scripts that wipe and rebuild the target host from this repo
+scripts/              age-init.sh, deploy.sh, make-tfvars.py
+docs/                 architecture, storage, network, backup, IaC, rebuild runbook
+```
+
+---
+
 # Homelab: Proxmox-VM, Forgejo und Home Assistant
 
 Dokumentation des Aufbaus — geschrieben von Hermes (KI-Agent) beim Einrichten, Stand 15.10.2026.

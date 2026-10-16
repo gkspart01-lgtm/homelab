@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 980" width="1440" height="980" font-family="Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d8590"/>
+    </marker>
+    <marker id="arrowA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#388bfd"/>
+    </marker>
+    <style>
+      .bg      { fill:#0d1117; }
+      .zone    { fill:#161b22; stroke:#30363d; stroke-width:1.5; rx:12; }
+      .zoneLbl { fill:#8b949e; font-size:15px; font-weight:600; letter-spacing:1px; }
+      .box     { fill:#21262d; stroke:#484f58; stroke-width:1.2; rx:8; }
+      .boxHi   { fill:#1f2a37; stroke:#388bfd; stroke-width:1.6; rx:8; }
+      .boxWarn { fill:#2a1f1f; stroke:#d29922; stroke-width:1.4; rx:8; }
+      .t       { fill:#e6edf3; font-size:14px; }
+      .tb      { fill:#e6edf3; font-size:15px; font-weight:600; }
+      .s       { fill:#8b949e; font-size:12px; }
+      .link    { stroke:#7d8590; stroke-width:1.6; fill:none; marker-end:url(#arrow); }
+      .linkA   { stroke:#388bfd; stroke-width:2; fill:none; marker-end:url(#arrowA); }
+      .dash    { stroke:#8b949e; stroke-width:1.4; stroke-dasharray:6 5; fill:none; marker-end:url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1440" height="980"/>
+
+  <text x="40" y="48" class="tb" font-size="22">Homelab hl0 — Architecture Overview</text>
+  <text x="40" y="72" class="s">Repository is the source of truth · Proxmox on the laptop · dumb public edge on a 1 GB VPS · Docker Compose for services · SOPS+age for secrets</text>
+
+  <!-- Internet -->
+  <rect class="zone" x="40" y="100" width="300" height="240"/>
+  <text x="60" y="128" class="zoneLbl">INTERNET</text>
+  <rect class="box" x="60" y="145" width="260" height="70"/>
+  <text x="76" y="172" class="t">Family devices</text>
+  <text x="76" y="192" class="s">phones, tablets, laptops</text>
+  <text x="76" y="209" class="s">no VPN client required for public services</text>
+  <rect class="box" x="60" y="228" width="260" height="52"/>
+  <text x="76" y="252" class="t">Admin</text>
+  <text x="76" y="270" class="s">WireGuard + SSH</text>
+  <rect class="box" x="60" y="292" width="260" height="34"/>
+  <text x="76" y="314" class="s">DNS zone at IONOS: *.hl0.mehrwert.icu</text>
+
+  <!-- Edge VPS -->
+  <rect class="zone" x="400" y="100" width="300" height="240"/>
+  <text x="420" y="128" class="zoneLbl">PUBLIC EDGE — IONOS VPS (1 GB)</text>
+  <rect class="boxHi" x="420" y="145" width="260" height="105"/>
+  <text x="436" y="172" class="tb">frps</text>
+  <text x="436" y="194" class="t">public :443, dumb packet mover</text>
+  <text x="436" y="214" class="s">no certificate, no routing rules</text>
+  <text x="436" y="232" class="s">token auth, firewall: 22/443</text>
+  <rect class="boxWarn" x="420" y="262" width="260" height="62"/>
+  <text x="436" y="286" class="t">Why not Pangolin here</text>
+  <text x="436" y="305" class="s">upstream asks for 2 GB RAM;</text>
+  <text x="436" y="320" class="s">the 3 containers alone report ~650 MB</text>
+
+  <!-- Home zone -->
+  <rect class="zone" x="740" y="100" width="660" height="720"/>
+  <text x="760" y="128" class="zoneLbl">HOME LAN 192.168.178.0/21 — PROXMOX HOST "hl0" (i7-8550U, 16 GB soldered)</text>
+
+  <rect class="box" x="760" y="145" width="300" height="70"/>
+  <text x="776" y="170" class="tb">frpc (outbound tunnel)</text>
+  <text x="776" y="190" class="s">keeps the tunnel up because CGNAT</text>
+  <text x="776" y="206" class="s">lets nothing in</text>
+
+  <rect class="boxHi" x="1080" y="145" width="300" height="70"/>
+  <text x="1096" y="170" class="tb">Traefik (docker01)</text>
+  <text x="1096" y="190" class="s">routing by Host header, TLS termination</text>
+  <text x="1096" y="206" class="s">wildcard cert via DNS-01 (IONOS API)</text>
+
+  <rect class="box" x="1080" y="235" width="300" height="60"/>
+  <text x="1096" y="260" class="tb">Auth gate (forward-auth)</text>
+  <text x="1096" y="280" class="s">Authelia / Tinyauth — only for public routes</text>
+
+  <!-- services -->
+  <rect class="box" x="760" y="255" width="300" height="250"/>
+  <text x="776" y="280" class="tb">Services (Docker Compose stacks)</text>
+  <text x="776" y="302" class="t">Vaultwarden · Forgejo · SilverBullet</text>
+  <text x="776" y="322" class="t">Paperless-ngx · Immich · Nextcloud</text>
+  <text x="776" y="342" class="t">SparkyFitness · Homepage · AdGuard</text>
+  <text x="776" y="370" class="s">Home Assistant OS runs in its own VM,</text>
+  <text x="776" y="387" class="s">lan only, never behind the tunnel</text>
+  <text x="776" y="415" class="s">Phased by RAM: Immich without ML,</text>
+  <text x="776" y="432" class="s">Nextcloud slim (not AIO), parked</text>
+  <text x="776" y="449" class="s">services are enabled=false in tofu</text>
+  <text x="776" y="477" class="s">Everything is declared in Git:</text>
+  <text x="776" y="494" class="s">tofu/ · stacks/ · secrets/ · lab/</text>
+
+  <rect class="boxHi" x="1080" y="315" width="300" height="120"/>
+  <text x="1096" y="340" class="tb">Storage</text>
+  <text x="1096" y="362" class="t">SSD (M.2): system, DBs, app state</text>
+  <text x="1096" y="382" class="t">HDD pool: mergerfs + SnapRAID</text>
+  <text x="1096" y="402" class="s">largest disk = parity (no usable space)</text>
+  <text x="1096" y="420" class="s">no striping: a dead disk never kills the pool</text>
+
+  <rect class="box" x="1080" y="455" width="300" height="150"/>
+  <text x="1096" y="480" class="tb">Backup — 3-2-1</text>
+  <text x="1096" y="502" class="t">1  vzdump of all guests to the pool</text>
+  <text x="1096" y="522" class="t">2  restic encrypted, offsite</text>
+  <text x="1096" y="542" class="t">3  USB disk kept offline, rotated</text>
+  <text x="1096" y="568" class="s">(1 GB VPS cannot be a backup target)</text>
+  <text x="1096" y="590" class="s">restore drill is part of the plan, not an extra</text>
+
+  <rect class="boxWarn" x="760" y="525" width="300" height="150"/>
+  <text x="776" y="550" class="tb">Store of last resort</text>
+  <text x="776" y="572" class="t">Anchor: bare repo on the Proxmox host</text>
+  <text x="776" y="590" class="s">git://&lt;host&gt;/homelab.git — survives lab wipes</text>
+  <text x="776" y="610" class="t">Offline: age key (paper/USB)</text>
+  <text x="776" y="628" class="s">without it the encrypted secrets are useless</text>
+  <text x="776" y="652" class="s">Rebuild = install host, clone, tofu apply,</text>
+  <text x="776" y="669" class="s">restic restore — rehearsed in lab/drill.sh</text>
+
+  <rect class="box" x="760" y="695" width="620" height="105"/>
+  <text x="776" y="720" class="tb">Lab: proving reproducibility before real hardware</text>
+  <text x="776" y="742" class="t">Throwaway nested Proxmox VM + the anchor repository</text>
+  <text x="776" y="762" class="s">drill.sh: provision (unattended ISO) → bootstrap → clone → tofu plan/apply → verify → result committed to Git</text>
+  <text x="776" y="782" class="s">Limit: the lab has 4 GB RAM, the laptop 16 — production sizing there runs through plan only</text>
+
+  <!-- arrows -->
+  <path class="linkA" d="M 320 180 L 420 180"/>
+  <path class="linkA" d="M 680 190 L 760 180"/>
+  <path class="link" d="M 1060 180 L 1080 180"/>
+  <path class="linkA" d="M 1230 215 L 1230 235"/>
+  <path class="link" d="M 1080 265 L 1060 300"/>
+  <path class="link" d="M 900 145 L 900 255"/>
+  <path class="link" d="M 1060 380 L 1080 375"/>
+  <path class="link" d="M 1230 435 L 1230 455"/>
+  <path class="dash" d="M 320 250 L 760 640"/>
+  <path class="dash" d="M 1230 315 L 1230 215" />
+
+  <text x="352" y="172" class="s">HTTPS 443</text>
+  <text x="700" y="176" class="s">tunnel</text>
+  <text x="1240" y="462" class="s">nightly</text>
+  <text x="640" y="470" class="s">admin path</text>
+</svg>
