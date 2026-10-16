@@ -29,7 +29,7 @@ guests = {
     cores   = 4
     memory  = 8192
     disk    = 64
-    ip      = "192.168.178.11/24"
+    ip      = "192.168.178.11/21"
     tags    = ["docker", "prod"]
     purpose = "Docker-Host: Traefik, Vaultwarden, Forgejo, Paperless, SilverBullet"
   }
@@ -39,7 +39,7 @@ guests = {
     cores   = 2
     memory  = 2048
     disk    = 32
-    ip      = "192.168.178.12/24"
+    ip      = "192.168.178.12/21"
     tags    = ["smarthome", "prod"]
     purpose = "Home Assistant OS"
   }
@@ -49,11 +49,11 @@ guests = {
     cores   = 2
     memory  = 1024
     disk    = 16
-    ip      = "192.168.178.13/24"
+    ip      = "192.168.178.13/21"
     tags    = ["git", "prod"]
     purpose = "Forgejo (Git-Host, Ursprung aller IaC-Artefakte)"
   }
   # Phase 2/3 - erst aktivieren, wenn RAM frei ist (16 GB sind die harte Grenze):
-  # immich    = { type = "lxc", vmid = 211, cores = 4, memory = 4096, disk = 32, ip = "192.168.178.14/24", enabled = false, purpose = "Immich (ohne ML-Container)" }
-  # nextcloud = { type = "lxc", vmid = 212, cores = 2, memory = 2048, disk = 32, ip = "192.168.178.15/24", enabled = false, purpose = "Nextcloud (schlank, kein AIO)" }
+  # immich    = { type = "lxc", vmid = 211, cores = 4, memory = 4096, disk = 32, ip = "192.168.178.14/21", enabled = false, purpose = "Immich (ohne ML-Container)" }
+  # nextcloud = { type = "lxc", vmid = 212, cores = 2, memory = 2048, disk = 32, ip = "192.168.178.15/21", enabled = false, purpose = "Nextcloud (schlank, kein AIO)" }
 }

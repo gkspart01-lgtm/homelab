@@ -44,7 +44,7 @@ das ist der Hebel, den dir 16 GB lassen.
   auch dann laufen, wenn der Docker-Host neu gebaut wird.
 
 ## Namens- und Adressplan
-* Host: `hl0.mehrwert.icu` (FQDN), statisch **192.168.178.10/24**
+* Host: `hl0.mehrwert.icu` (FQDN), statisch **192.168.178.10/21**
 * Gaeste: `.11` docker01, `.12` haos, `.13` forgejo (alle **unter** dem
   DHCP-Pool der FRITZ!Box, der typischerweise bei `.20` beginnt)
 * Dienste: `https://<dienst>.hl0.mehrwert.icu` (Wildcard-Zertifikat, siehe `docs/09-netz.md`)

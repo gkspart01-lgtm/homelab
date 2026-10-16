@@ -21,7 +21,7 @@ Reihenfolge einhalten – jeder Schritt liefert die Grundlage fuer den naechsten
 # Repo holen (Forgejo laeuft ggf. noch nicht -> Kopie vom Stick nehmen)
 git clone <forgejo-url> /root/homelab-iac
 bash /root/homelab-iac/hosts/spectre-x360/pve-bootstrap.sh \
-     hl0.mehrwert.icu 192.168.178.10/24 192.168.178.1 192.168.178.1
+     hl0.mehrwert.icu 192.168.178.10/21 192.168.178.1 192.168.178.1
 ```
 Erledigt: Repos, Zeitzone/NTP, Deckel-zu ignorieren, Thermik/Governor,
 USB-Autosuspend aus, SnapRAID-/vzdump-Timer, OpenTofu-API-Token.
