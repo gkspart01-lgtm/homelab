@@ -1,111 +1,147 @@
-# Homelab — Infrastructure as Code
+# Homelab Architecture Plan
 
-A self-hosted homelab that is **rebuildable from this repository**: Proxmox VE on a laptop,
-services in Docker Compose, secrets in SOPS+age, a dumb public edge on a small VPS behind CGNAT.
-Documentation is in English; the author writes German.
+**Status:** proposal for review — architecture only, not an implementation runbook.
+**Language:** English. The repository is intentionally reduced to this document until the plan is approved.
 
-## Start here
+## Goals and constraints
 
-| Document | Topic |
+- Rebuild the environment from versioned configuration after a host or disk failure.
+- Use Proxmox VE, OpenTofu, cloud-init, Docker Compose, and SOPS + age; no Kubernetes or Ansible.
+- Serve family users, with selected services reachable remotely.
+- No home-router port forwarding and no Cloudflare. An IONOS VPS is the public edge; the home connection is behind CGNAT.
+- Target host: HP Spectre x360 13-ae043ng, i7-8550U, 16 GB soldered RAM, one M.2 slot, USB storage. RAM cannot be upgraded.[9]
+- Treat 16 GB as a hard ceiling. Immich's documented baseline is already 6 GB RAM and two CPU cores; phase services in and measure real peaks.[12]
+
+## Proposed architecture
+
+```mermaid
+graph LR
+  F[Family devices] --> DNS[IONOS DNS<br/>service.hl0.mehrwert.icu]
+  DNS --> VPS[IONOS VPS · frps<br/>public TCP 443]
+  VPS -->|frp tunnel, initiated from home| FRPC[frpc at home]
+  FRPC --> RP[Traefik<br/>TLS termination + routing]
+  RP --> AUTH[SSO / forward-auth<br/>where compatible]
+  AUTH --> PUB[Selected public services]
+
+  LAN[Home LAN clients] -->|split DNS| RP
+  ADMIN[Administrator] -->|WireGuard, separate admin path| MGMT[Proxmox / SSH / private Homepage]
+  RP --> PRIV[Private services]
+  PVE[Proxmox VE] --> DOCKER[Debian VM<br/>Docker Compose]
+  PVE --> HA[Home Assistant OS VM]
+  DOCKER --> DATA[SSD: databases and app state]
+  DOCKER --> BULK[HDD data pool, design TBD]
+  DATA --> BACKUP[Encrypted offsite backup<br/>+ offline copy]
+  BULK --> BACKUP
+```
+
+- **Public edge:** frp is the leading proposal because it is a focused reverse tunnel with token authentication, while Pangolin's own VPS guidance recommends 2 GB RAM. Keep frp small: allow only the required ports, require authentication and encrypted tunnel transport, keep its admin interface private, and update it deliberately.[1][2][13]
+- **TLS:** public HTTPS terminates at Traefik at home; obtain certificates with an IONOS DNS-01 challenge. The public VPS forwards traffic but holds no application data or routing policy.
+- **Admin access:** keep Proxmox, SSH, and private dashboards off the public path. Use WireGuard as a separate management route; never expose the Proxmox UI through the service tunnel.
+- **Services:** one Debian VM hosts Compose stacks; Home Assistant OS remains a separate VM. Start with a small set and add services only after measuring RAM. No per-service VM unless isolation or a specific appliance requirement justifies it.
+- **Data:** M.2 for the host, databases, and application state. Bulk media may use per-disk filesystems plus mergerfs/SnapRAID after disk inventory. SnapRAID parity is not real-time, so it is not appropriate protection for frequently changing live databases.[8]
+- **Backups:** keep guest/config backups, encrypted offsite copies of irreplaceable data, and an offline copy. SnapRAID and a second directory on the same disks are not independent backups. Perform a restore test before loading family data.
+
+## Network and IP plan
+
+The known home network is `192.168.176.0/21` with gateway `192.168.178.1`. The agreed address blocks are:
+
+| Purpose | Reserved range |
 |---|---|
-| [docs/13-architecture.md](docs/13-architecture.md) | **Architecture overview** — layers, diagrams, request paths, trust boundaries, failure domains, RAM budget |
-| [docs/14-setup-timeline.md](docs/14-setup-timeline.md) | **Build order** — phases P0–P9 with gates, dependencies and fallbacks |
-| [docs/15-service-choices.md](docs/15-service-choices.md) | **Tool choices** — pros/cons per option, the reason for each pick, and when to revisit it |
-| [docs/diagrams/architecture-overview.svg](docs/diagrams/architecture-overview.svg) | One-page diagram of the whole system |
+| Primary / real lab | `192.168.181.100–150` |
+| Disposable test lab | `192.168.181.200–250` |
 
-## Repository layout
+Before assigning addresses, verify that neither block overlaps the FRITZ!Box DHCP pool or existing leases. Keep a small IP/name inventory in the architecture plan. Use stable addresses for infrastructure, not every short-lived guest.
 
-```
-hosts/spectre-x360/   unattended install answer file, bootstrap, snapraid/restic/systemd templates
-tofu/                 OpenTofu + bpg/proxmox: every VM and LXC, declarative
-cloud-init/           guest initialization templates
-stacks/               Docker Compose stacks, one directory per service
-secrets/              SOPS configuration (age) and the rules for it
-lab/                  drill scripts that wipe and rebuild the target host from this repo
-scripts/              age-init.sh, deploy.sh, make-tfvars.py
-docs/                 architecture, storage, network, backup, IaC, rebuild runbook
-```
+**Addressing policy:**
 
----
+- Prefer DHCP reservations for stable VMs, bound to explicitly stable virtual MAC addresses.
+- If reservation is unavailable or unsuitable, configure a static address inside the reserved block and outside the DHCP pool.
+- Use normal DHCP for disposable test guests.
+- Do not mix static assignments and the DHCP pool; never rely on “that address looks unused.”
 
-# Homelab: Proxmox-VM, Forgejo und Home Assistant
+**Name resolution:** use DNS names, not literal IPs, in service settings. Compose services talk to each other by Compose service name. Use internal DNS for LAN-only names and split DNS for public service names. mDNS is useful for device discovery (including some smart-home devices), but not as the dependency for stable service-to-service connections.
 
-Dokumentation des Aufbaus — geschrieben von Hermes (KI-Agent) beim Einrichten, Stand 15.10.2026.
+## Remote access, Homepage, and SSO
 
-## Inhalt
+Homepage should **not** be restricted to the tunnel by default. The useful default is one private Homepage behind SSO, available from the LAN and through WireGuard. A second, separate public overview is optional: list only intentionally public services and expose no internal names, admin links, API widgets, or credentials.
 
-| Dokument | Thema |
-|---|---|
-| [docs/01-proxmox-host.md](docs/01-proxmox-host.md) | Der Proxmox-VE-Host `pve` (192.168.181.10): Zugang, Storage, Gäste |
-| [docs/02-proxmox-vm-hl01.md](docs/02-proxmox-vm-hl01.md) | **Die Proxmox-VM `hl01`** — unbeaufsichtigte PVE-Installation in einer VM |
-| [docs/03-forgejo.md](docs/03-forgejo.md) | Forgejo 16.0.6 als LXC-Container (`forgejo`, 192.168.181.51) |
-| [docs/04-home-assistant.md](docs/04-home-assistant.md) | Home Assistant OS als VM (`homeassistant` auf `hl01`) |
-| [docs/05-betrieb.md](docs/05-betrieb.md) | Runbook: neue Gäste, Backups, Updates, Troubleshooting |
-| [docs/06-verifikation.md](docs/06-verifikation.md) | Wie jeder Schritt tatsächlich getestet wurde (Befehle + Ergebnisse) |
+A reverse-proxy login gate is not automatically compatible with every native app. Prefer each service’s own login or native OIDC where supported. Immich supports OIDC and documents reverse-proxy requirements for headers and mobile endpoints; Home Assistant requires trusted-proxy configuration when reverse-proxied, so test browser and mobile-client flows.[3][4][5]
 
-Skripte und Konfigurationen, die dabei entstanden sind, liegen unter [`scripts/`](scripts/).
+| Option | Advantages | Trade-offs | Proposed use |
+|---|---|---|---|
+| **Authelia** | Configuration in files; proxy authorization; good fit for a light login gate | More manual user/config management; test each app and client | First SSO pilot for Homepage and compatible browser-only services.[6] |
+| **authentik** | Richer identity provider, UI, policies, and proxy provider for apps without native auth | More components and operational weight | Revisit if family self-service or broader OIDC/SAML management becomes important.[7] |
+| **Tinyauth** | Small, simple proxy-auth layer | Not a full identity platform; fewer identity features | Alternative if a login wall is enough, not if full SSO is required |
+| **Native app auth / OIDC** | Best compatibility with service APIs and mobile apps | Accounts may still be managed per service | Default for Immich, Nextcloud, Vaultwarden, and other native clients |
+| **VPN-only** | Small public attack surface; simple service auth model | Family members need a VPN client | Default for Proxmox, SSH, Home Assistant administration, and internal dashboards |
 
-## Kurzüberblick der Landschaft
+**Initial exposure policy:** Homepage admin view, Proxmox, SSH, and Home Assistant are private/VPN-only. Public access is enabled service by service only after authentication, backups, and mobile-client tests pass. Vaultwarden must not be put behind a generic proxy login without testing Bitwarden clients; its own authentication remains required.
 
-```
-Fritz!Box 192.168.178.1 (Gateway, DHCP, DNS)
-│   LAN 192.168.176.0/21, Domain fritz.box
-│
-├── Proxmox-Host "pve"            192.168.181.10   PVE 9.2, Storage: local + local-lvm
-│   ├── LXC 100 "hermesagent"     192.168.178.56   Container, in dem dieser Agent läuft
-│   ├── VM 9000 "debian13-cloud-template"          cloud-init-Template für Debian-13-VMs
-│   └── VM 101 "hl01"             192.168.181.50   Proxmox VE 9.2.2 (verschachtelt!)
-│       ├── LXC 110 "forgejo"     192.168.181.51   Forgejo 16.0.6 (dieses Repo)
-│       └── VM 100 "homeassistant" (DHCP)          Home Assistant OS 18.3
-│
-└── bestehende Geräte: Home Assistant (192.168.180.20), OctoPrint, Raspberry Pis …
-```
+## Storage decision — deliberately not final yet
 
-## Wichtige Adressen und Zugänge
+Do not finalize a pool or format disks until the inventory is complete: capacity, 2.5/3.5-inch, enclosure/bridge, power supply, SMART health, and data already on each disk.
 
-| Dienst | Adresse | Login |
-|---|---|---|
-| Proxmox-Host `pve` | https://192.168.181.10:8006 | `root@pam` |
-| Proxmox-VM `hl01` | https://192.168.181.50:8006 | `root@pam` |
-| Forgejo | http://192.168.181.51 | Admin-Benutzer `falko` |
-| Forgejo Git-SSH | `ssh://git@192.168.181.51:2222/…` | SSH-Key im Web-UI hinterlegen |
-| Home Assistant | http://<DHCP-IP>:8123 | beim ersten Aufruf Onboarding-Assistent |
+- The laptop has one internal M.2 slot; it cannot provide an internal SSD mirror. A second SSD over Thunderbolt would still be an external device, not a reason to treat it as a reliable mirror.
+- ZFS is not ruled out because ECC is mandatory: OpenZFS calls ECC strongly recommended, not required. For this laptop, USB-drive reliability, memory budget, and operating simplicity are the reasons to defer it.[11]
+- For mostly static bulk files, mergerfs + SnapRAID is a candidate. Its parity must be synced and does not protect changes made since the last sync.[8]
+- Do not store live databases on the SnapRAID pool. Keep app state and databases on SSD; back them up separately.
+- Start with the simplest reliable set of powered drives. Add a multi-disk pool only if its power, enclosure, and USB stability are proven.
+- RAID/parity improves availability; it does not replace an independent backup.
 
-**Passwörter stehen bewusst nicht in diesem Repository** — es ist öffentlich sichtbar. Die Zugangsdaten wurden separat übergeben; alle Stellen, an denen eines gesetzt wurde, sind in den Dokumenten als `«Passwort»` markiert.
+## Build sequence and gates
 
----
-
-## Ziel-Setup (ab 15.10.2026): Proxmox auf dem Laptop `hl0`
-
-Der Testaufbau oben (Host `pve`, VM `hl01`) ist **wegwerfbar** und diente nur als
-Uebungsplatz. Der produktive Aufbau entsteht auf einem HP Spectre x360 13-ae043ng
-(i7-8550U, 16 GB, 1× M.2) und ist vollstaendig aus diesem Repo reproduzierbar.
-
-| Dokument | Thema |
-|---|---|
-| [docs/07-ziel-architektur.md](docs/07-ziel-architektur.md) | Zielbild, Hardware-Realitaet, RAM-Budget, Dienst-Aufteilung |
-| [docs/08-speicher.md](docs/08-speicher.md) | mergerfs + SnapRAID fuer gemischte USB-Platten |
-| [docs/09-netz.md](docs/09-netz.md) | Public Edge am IONOS-VPS per WireGuard, DNS-01/Wildcard, Split-DNS |
-| [docs/10-backup.md](docs/10-backup.md) | 3-2-1 (vzdump, restic offsite, Offline-Platte) |
-| [docs/11-iac.md](docs/11-iac.md) | Vier IaC-Ebenen: Host, OpenTofu, cloud-init, Compose + SOPS/age |
-| [docs/12-rebuild-runbook.md](docs/12-rebuild-runbook.md) | **Disaster Recovery**: Host in ~2 h wieder aufsetzen |
-
-```
-hosts/spectre-x360/   Answer-File, Bootstrap, SnapRAID-/restic-/systemd-Vorlagen
-tofu/                 OpenTofu + bpg/proxmox: alle VMs/LXC deklarativ
-cloud-init/           Muster fuer Gast-Initialisierung
-stacks/               Docker-Compose-Stacks, ein Ordner pro Dienst
-secrets/              SOPS-Konfiguration (age) + Regeln
-scripts/              age-init.sh, deploy.sh
+```mermaid
+gantt
+  title Proposed order — gates, not calendar promises
+  dateFormat X
+  axisFormat %s
+  section Decide
+  Inventory, IPs, exposure policy :p0, 0, 1
+  section Rehearse
+  Repeatable disposable lab       :p1, after p0, 2
+  section Host
+  PVE install and network          :p2, after p1, 1
+  Storage decision and burn-in     :p3, after p2, 1
+  section Core
+  Guests and LAN-only services     :p4, after p3, 1
+  Backup and restore test          :p5, after p4, 1
+  section Remote access
+  frp, TLS, SSO pilot              :p6, after p5, 1
+  Family services, one at a time   :p7, after p6, 2
+  section Prove
+  Two clean rebuild rounds         :p8, after p7, 2
 ```
 
-## Anker und Lab: wie die Reproduzierbarkeit bewiesen wird
+1. **Decide:** inventory drives, reserve the IP blocks outside DHCP, identify the IONOS DNS zone/API access, and classify each service as public, VPN-only, or LAN-only.
+2. **Rehearse:** keep a stable repository source outside the disposable VM; rebuild one test target repeatedly. Do not run parallel test hosts on the current constrained test hardware unless resource headroom is measured.
+3. **Install the real host:** PVE, fixed/reserved host address, stable Ethernet adapter, lid/power/cooling behavior verified after reboot. The unattended installer’s disk selector must be checked against the real NVMe device before use.[10]
+4. **Build locally first:** storage and guests, then services on LAN only. Add Home Assistant, Homepage, and the first Compose stacks.
+5. **Backup gate:** restore one guest and one application database into a scratch target. No family data before this passes.
+6. **Expose one test service:** configure frp, DNS-01 TLS, and the SSO pilot. Verify from a mobile network and test native clients.
+7. **Add family services gradually:** Paperless, Immich, Nextcloud, SilverBullet, SparkyFitness, Vaultwarden, and Hermes are candidates—not a promise that all fit simultaneously in 16 GB.
+8. **Prove rebuildability:** two consecutive successful rebuilds from the repository; document any manual action before calling the plan complete.
 
-* **Anker** (persistenter Klon-Ursprung, ueberlebt jeden Test-Wipe):
-  bare-Repo auf dem Proxmox-Host `pve` unter `/root/git-anchor/homelab.git`,
-  erreichbar als `git://192.168.181.10/homelab.git`. Der Agent pusht bei jedem
-  Commit an Forgejo **und** in den Anker (zwei push-URLs an einem Remote).
-* **Lab** (`lab/`): Skripte, die den Ziel-Host wiederholt komplett plattmachen und
-  aus diesem Repo neu aufbauen — Provision (Auto-Install-ISO) → Bootstrap →
-  Repo klonen → OpenTofu plan/apply → Pruefliste → Ergebnis als Markdown im Repo.
-  Einzelschritte und Grenzen des Labors: [lab/README.md](lab/README.md)
+## Open decisions before implementation
+
+- Exact drive inventory and whether the current largest disk should be data or parity.
+- Which services must be public; which may require VPN.
+- Whether Authelia is enough or family self-service makes authentik worthwhile.
+- IONOS DNS/API details and whether the wildcard is for `*.hl0.mehrwert.icu`.
+- Final individual IPs within the two reserved ranges, after checking the DHCP pool.
+- Offsite-backup target and budget.
+
+## Sources
+
+[1] https://github.com/fatedier/frp — frp — official GitHub repository
+[2] https://docs.pangolin.net/self-host/choosing-a-vps — Pangolin — choosing a VPS
+[3] https://docs.immich.app/administration/reverse-proxy — Immich — reverse proxy
+[4] https://docs.immich.app/administration/oauth — Immich — OAuth/OIDC authentication
+[5] https://www.home-assistant.io/docs/configuration/remote — Home Assistant — remote access and reverse proxy
+[6] https://www.authelia.com/reference/guides/proxy-authorization — Authelia — proxy authorization
+[7] https://docs.goauthentik.io/add-secure-apps/providers/proxy — authentik — proxy provider
+[8] https://www.snapraid.it/manual — SnapRAID — official manual
+[9] https://h10032.www1.hp.com/ctg/Manual/c05811755.pdf — HP Spectre x360 13 service manual
+[10] https://pve.proxmox.com/wiki/Automated_Installation — Proxmox VE — automated installation
+[11] https://openzfs.github.io/openzfs-docs/Project%20and%20Community/FAQ.html — OpenZFS FAQ — memory and ECC
+[12] https://docs.immich.app/install/requirements — Immich — installation requirements
+[13] https://github.com/fatedier/frp/blob/dev/conf/frps_full_example.toml — frp — full frps configuration example

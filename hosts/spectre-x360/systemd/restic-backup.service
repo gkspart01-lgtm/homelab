@@ -1,6 +1,0 @@
-[Unit]
-Description=restic-Offsite-Backup (Konfiguration + Dumps)
-After=network-online.target
-[Service]
-Type=oneshot
-ExecStart=/root/homelab-iac/hosts/spectre-x360/restic-backup.sh
