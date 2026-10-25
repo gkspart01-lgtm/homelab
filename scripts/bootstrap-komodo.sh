@@ -76,6 +76,6 @@ done
 echo "=== 6. Status ==="
 docker ps --format '{{.Names}}\t{{.Status}}' | sort
 echo
-echo "Komodo-UI:       https://komodo.$DOMAIN  (hinter authentik, sonst: ssh -L 9120:127.0.0.1:9120)"
+echo "Komodo-UI:       https://komodo.$DOMAIN  (eigener Login, kein SSO - bewusst)"
 echo "authentik:       https://auth.$DOMAIN"
 echo "Testdienst:      https://whoami.$DOMAIN"
