@@ -20,12 +20,14 @@ GOT=$(sha512sum "$IMPORT_DIR/$IMG" | awk '{print $1}')
 
 echo "=== 2. VM anlegen (Import + cloud-init) ==="
 KEY=${KEY:?KEY muss als Umgebungsvariable uebergeben werden}
+# Passwort des cloud-init-Users: aus der Umgebung, niemals im Repo
+CIPASSWORD=${CIPASSWORD:?CIPASSWORD muss als Umgebungsvariable uebergeben werden}
 printf '%s\n' "$KEY" > /tmp/tpl-sshkeys.pub
 qm create $VMID --name debian13-cloud-template --memory 2048 --cores 2 --cpu host --ostype l26 \
   --scsihw virtio-scsi-single --agent enabled=1,fstrim_cloned_disks=1 \
   --scsi0 "local-lvm:0,import-from=$IMPORT_DIR/$IMG" \
   --ide2 local-lvm:cloudinit --net0 virtio,bridge=vmbr0 --ipconfig0 ip=dhcp \
-  --ciuser debian --cipassword 'CHANGE_ME' --sshkeys /tmp/tpl-sshkeys.pub --ciupgrade 0 \
+  --ciuser debian --cipassword "$CIPASSWORD" --sshkeys /tmp/tpl-sshkeys.pub --ciupgrade 0 \
   --serial0 socket --vga serial0 --boot order=scsi0 --bootdisk scsi0 --onboot 0 \
   --description "Debian 13 (trixie) genericcloud + cloud-init + qemu-guest-agent. Template fuer OpenTofu (VM-Klone)."
 qm resize $VMID scsi0 10G

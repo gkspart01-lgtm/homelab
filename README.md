@@ -243,7 +243,7 @@ cp .env.example .env
 #    AUTHENTIK_POSTGRESQL_PASSWORD=$(openssl rand -hex 24)
 #    AUTHENTIK_SECRET_KEY=$(openssl rand -base64 48 | tr -d "\n")
 #    AUTHENTIK_BOOTSTRAP_TOKEN=$(openssl rand -hex 32)
-#    AUTHENTIK_BOOTSTRAP_PASSWORD=CHANGE_ME   # change immediately after first login
+#    AUTHENTIK_BOOTSTRAP_PASSWORD=$(openssl rand -base64 24)   # change after first login
 #    Paste into .env
 docker compose up -d
 #    Wait ~60s for authentik health endpoint and blueprints (11 default flows).
