@@ -1,7 +1,7 @@
 # Homelab Architecture Plan
 
-**Status:** proposal for review — architecture only, not an implementation runbook.
-**Language:** English. The repository is intentionally reduced to this document until the plan is approved.
+**Status:** approved 2026-10-25 — implementation running on `pve2` (192.168.181.99). See *Implementation status* below.
+**Language:** English.
 
 ## Goals and constraints
 
@@ -145,3 +145,51 @@ gantt
 [11] https://openzfs.github.io/openzfs-docs/Project%20and%20Community/FAQ.html — OpenZFS FAQ — memory and ECC
 [12] https://docs.immich.app/install/requirements — Immich — installation requirements
 [13] https://github.com/fatedier/frp/blob/dev/conf/frps_full_example.toml — frp — full frps configuration example
+
+## Implementation status on pve2 (2026-10-25)
+
+`pve2` is the Proxmox VE host built for the rehearsal phase: 4 vCPU, 12 GB RAM
+(11.3 GB usable), 319 GB disk – LVM-thin `local-lvm` (201 GB) plus `local` (92 GB).
+
+| Guest | ID | Type | Size | Address | Purpose |
+|---|---|---|---|---|---|
+| `debian13-cloud-template` | 9000 | VM template | 2C / 2 GB / 10 GB | – | Debian 13.7 genericcloud + cloud-init + qemu-guest-agent; clone source for all later VMs |
+| `docker01` | 200 | VM (clone) | 4C / 6 GB / 64 GB | 192.168.181.100/21 | Compose host (Traefik, Vaultwarden, Paperless, SilverBullet) |
+| `haos` | 201 | VM (image import) | 2C / 2 GB / 32 GB | DHCP (192.168.178.74) | Home Assistant OS 18.3, Core 2026.10.4, onboarding completed |
+| `probe` | 220 | LXC | 1C / 512 MB / 4 GB | 192.168.181.101/21 | IaC probe: proves the container path from the repository |
+
+OpenTofu budget output: `ram_total_mb = 8704`, `ram_reserve_mb = 2560` (host 11 264 MB).
+Host-side ballooning (set on the *outer* PVE, not inside pve2): `memory=12288`,
+`balloon=8192` — the outer host may reclaim 4 GB, the guest never drops below 8 GB.
+
+### Running it (operator workstation, outside pve2)
+
+```bash
+cp tofu/nodes.auto.tfvars.example tofu/nodes.auto.tfvars   # API token + SSH key path
+cd tofu && tofu init && tofu plan && tofu apply
+```
+
+The provider needs SSH to the node for image imports and cloud-init; pass the **key
+content** (`private_key = file(pathexpand(...))`), not the path.
+
+### API token privileges (proxmox role `Tofu`, token `tofu@pve!opentofu`)
+
+`VM.Allocate VM.Audit VM.Clone VM.Config.CPU VM.Config.CDROM VM.Config.Cloudinit
+VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options
+VM.GuestAgent.Audit VM.GuestAgent.Unrestricted VM.PowerMgmt Datastore.Allocate
+Datastore.AllocateSpace Datastore.Audit Pool.Allocate SDN.Use Sys.Audit`
+
+Missing `SDN.Use`, `VM.Config.Cloudinit`, `VM.Config.CDROM` or the GuestAgent audit
+privileges show up as HTTP 403 during `apply` (clone, cloud-init drive, agent query).
+
+### Notes learned during the rehearsal
+
+- VM disks import from a volume ID with `import_from` (`local:import/<file>.qcow2`);
+  `file_id` would try to attach the image instead of importing it.
+- `qm create --sshkeys` on the CLI expects a **file path**, the API expects a
+  URL-encoded string.
+- Home Assistant OS is UEFI-only and cannot be cloned from the Debian template, so it
+  has its own resource (`tofu/haos.tf`). UEFI must work on the target node; inside a
+  nested PVE (PVE in a VM in a VM) OVMF does not initialise.
+- HAOS needs no cloud-init: address via DHCP, set the fixed address in the HA UI or as
+  a DHCP reservation on its MAC.

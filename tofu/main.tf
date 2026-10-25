@@ -5,7 +5,7 @@ provider "proxmox" {
   ssh {
     agent       = false
     username    = var.proxmox.ssh_user
-    private_key = var.proxmox.ssh_private_key
+    private_key = file(pathexpand(var.proxmox.ssh_private_key))
   }
 }
 
@@ -13,6 +13,9 @@ locals {
   active = { for name, g in var.guests : name => g if g.enabled }
   vms    = { for name, g in local.active : name => g if g.type == "vm" }
   lxcs   = { for name, g in local.active : name => g if g.type == "lxc" }
+
+  # HAOS ist eine eigene Ressource (haos.tf) und muss ins RAM-Budget einfliessen
+  ram_active_mb = sum([for g in local.active : g.memory]) + (var.haos.enabled ? var.haos.memory : 0)
 
   ipv4 = { for name, g in local.active : name => {
     address = g.ip
@@ -150,10 +153,10 @@ output "guests" {
 
 output "ram_total_mb" {
   description = "Reservierter RAM aller aktiven Gaeste (Grenze: defaults.host_ram_mb)."
-  value       = sum([for g in local.active : g.memory])
+  value       = local.ram_active_mb
 }
 
 output "ram_reserve_mb" {
   description = "Was fuer Host + Reserve uebrig bleibt"
-  value       = var.defaults.host_ram_mb - sum([for g in local.active : g.memory])
+  value       = var.defaults.host_ram_mb - local.ram_active_mb
 }

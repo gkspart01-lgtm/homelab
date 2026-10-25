@@ -41,3 +41,17 @@ variable "guests" {
     template     = optional(string, "") # abweichendes LXC-Template
   }))
 }
+
+variable "haos" {
+  description = "Home Assistant OS als UEFI-VM (eigenes Image, kein Klon aus dem Debian-Template)"
+  type = object({
+    enabled = optional(bool, true)
+    vmid    = number
+    cores   = number
+    memory  = number
+    disk    = number
+    version = string
+    image   = string # volume-id des entpackten Images, z.B. local:iso/haos_ova-18.3.qcow2
+    tags    = optional(list(string), [])
+  })
+}
