@@ -1,0 +1,60 @@
+# Nach tofu/nodes.auto.tfvars kopieren und anpassen.
+# ACHTUNG: enthaelt das API-Token -> Datei ist in .gitignore, Backup via restic.
+
+proxmox = {
+  endpoint  = "https://192.168.178.10:8006/"
+  api_token = "tofu@pve!opentofu=BITTE-DAS-TOKEN-AUS-/root/tofu-api-token.txt"
+  insecure  = true
+  ssh_user  = "root"
+}
+
+defaults = {
+  node         = "hl0"
+  datastore    = "local-lvm"
+  bridge       = "vmbr0"
+  template_id  = 9000
+  lxc_template = "local:vztmpl/debian-13-standard_13.1-1_amd64.tar.zst"             # Debian-13-cloud-init-Template (aus dem Testaufbau uebernommen)
+  searchdomain = "hl0.mehrwert.icu"
+  gateway      = "192.168.178.1"
+  dns          = "192.168.178.1"  # spaeter AdGuard Home (192.168.178.11)
+  ssh_keys     = ["ssh-ed25519 AAAA...DEIN-PUBLIC-KEY"]
+}
+
+# Adressplan: statisch UNTER dem DHCP-Pool der FRITZ!Box (der beginnt ueblicherweise bei .20)
+#   .10 Proxmox-Host hl0   |  .11 docker01  |  .12 haos  |  .13 forgejo
+# RAM-Budget: Summe(memory) unter ~14300 MB halten (16384 minus Host/Reserve).
+guests = {
+  docker01 = {
+    type    = "vm"
+    vmid    = 200
+    cores   = 4
+    memory  = 8192
+    disk    = 64
+    ip      = "192.168.178.11/21"
+    tags    = ["docker", "prod"]
+    purpose = "Docker-Host: Traefik, Vaultwarden, Forgejo, Paperless, SilverBullet"
+  }
+  haos = {
+    type    = "vm"
+    vmid    = 201
+    cores   = 2
+    memory  = 2048
+    disk    = 32
+    ip      = "192.168.178.12/21"
+    tags    = ["smarthome", "prod"]
+    purpose = "Home Assistant OS"
+  }
+  forgejo = {
+    type    = "lxc"
+    vmid    = 210
+    cores   = 2
+    memory  = 1024
+    disk    = 16
+    ip      = "192.168.178.13/21"
+    tags    = ["git", "prod"]
+    purpose = "Forgejo (Git-Host, Ursprung aller IaC-Artefakte)"
+  }
+  # Phase 2/3 - erst aktivieren, wenn RAM frei ist (16 GB sind die harte Grenze):
+  # immich    = { type = "lxc", vmid = 211, cores = 4, memory = 4096, disk = 32, ip = "192.168.178.14/21", enabled = false, purpose = "Immich (ohne ML-Container)" }
+  # nextcloud = { type = "lxc", vmid = 212, cores = 2, memory = 2048, disk = 32, ip = "192.168.178.15/21", enabled = false, purpose = "Nextcloud (schlank, kein AIO)" }
+}

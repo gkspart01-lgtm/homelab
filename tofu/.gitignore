@@ -1,0 +1,9 @@
+# Zugangsdaten und State niemals ins Git
+*.auto.tfvars
+!nodes.auto.tfvars.example
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/
+crash.log
+*.tfplan
+tfplan
