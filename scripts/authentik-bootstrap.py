@@ -75,8 +75,16 @@ def main():
     authz = find_flow("default-provider-authorization-implicit-consent") or \
         find_flow("default-provider-authorization-explicit-consent")
     invalid = find_flow("default-provider-invalidation-flow")
+    # Die Default-Blueprints (11 Flows) brauchen nach dem ersten Start 2-3 Minuten.
+    deadline = time.time() + 300
+    while (not authz or not invalid) and time.time() < deadline:
+        print("warte auf Default-Blueprints ...")
+        time.sleep(15)
+        authz = authz or find_flow("default-provider-authorization-implicit-consent") \
+            or find_flow("default-provider-authorization-explicit-consent")
+        invalid = invalid or find_flow("default-provider-invalidation-flow")
     if not authz or not invalid:
-        sys.exit("Default-Flows nicht gefunden")
+        sys.exit("Default-Flows nicht gefunden (nach 300 s)")
     print(f"Flows: authorization={authz} invalidation={invalid}")
 
     # 1. Proxy-Provider (forward_single) — vorhandenen wiederverwenden
