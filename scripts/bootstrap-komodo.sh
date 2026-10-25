@@ -37,6 +37,14 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 chmod 600 "$ENV_FILE"
 
+# DOMAIN in der Komodo-.env aktuell halten: Core/Periphery vererben ihre Umgebung an
+# die docker-compose-Aufrufe, und Shell-Variablen schlagen die stack-eigene .env.
+if ! grep -q "^DOMAIN=$DOMAIN$" "$ENV_FILE"; then
+  sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|" "$ENV_FILE"
+  echo "DOMAIN in $ENV_FILE auf $DOMAIN gesetzt (Core/Periphery neu erzeugen)"
+  ( cd "$REPO_DIR/stacks/komodo" && docker compose -p komodo up -d )
+fi
+
 echo "=== 2. Komodo starten (Core + Periphery + MongoDB) ==="
 docker network create edge >/dev/null 2>&1 || true
 ( cd "$REPO_DIR/stacks/komodo" && docker compose -p komodo up -d )
