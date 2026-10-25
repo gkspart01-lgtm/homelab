@@ -26,6 +26,7 @@ import pathlib
 import secrets
 import sys
 import time
+import tomllib
 import urllib.error
 import urllib.request
 
@@ -171,6 +172,35 @@ def run_sync():
         print(" ", s["name"], (s.get("info") or {}))
 
 
+def sync_stacks_from_toml():
+    """Stack-Configs aus komodo/homelab.toml neu schreiben (Variablen werden dabei
+    neu interpoliert) und anschliessend deployen.
+
+    Hintergrund: Komodo rendert [[VAR]] beim Schreiben der Stack-Config, nicht bei
+    jedem Deploy. Eine geaenderte Variable landet deshalb erst nach einem
+    UpdateStack im .env der Stack-Verzeichnisse.
+    """
+    toml_path = pathlib.Path(os.environ.get("TOML_FILE", "komodo/homelab.toml"))
+    if not toml_path.exists():
+        print(f"  ({toml_path} nicht gefunden — überspringe Stack-Update)")
+        return
+    data = tomllib.loads(toml_path.read_text())
+    stacks = data.get("stack", [])
+    st, current = api("/read/ListStacks")
+    by_name = {s["name"]: s for s in (current or [])}
+
+    for decl in stacks:
+        name = decl["name"]
+        if name not in by_name:
+            continue
+        cfg = dict(decl.get("config") or {})
+        cfg.setdefault("git_provider", "github.com")
+        st, res = api("/write/UpdateStack", {"id": by_name[name]["id"], "config": cfg})
+        print(f"  UpdateStack {name}: {st}")
+        st, res = api("/execute/DeployStack", {"stack": name})
+        print(f"  DeployStack {name}: {st}")
+
+
 def main():
     if not PASS:
         sys.exit("KOMODO_PASS fehlt (aus stacks/komodo/.env: KOMODO_INIT_ADMIN_PASSWORD)")
@@ -198,6 +228,9 @@ def main():
 
     ensure_sync()
     run_sync()
+    if os.environ.get("SYNC_STACKS", "1") == "1":
+        print("Stacks aus dem TOML neu schreiben und deployen:")
+        sync_stacks_from_toml()
 
 
 if __name__ == "__main__":
