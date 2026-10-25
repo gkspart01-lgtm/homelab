@@ -94,9 +94,14 @@ def load_secrets():
         "AK_ADMIN_PASS": secrets.token_urlsafe(18),
         "AK_BOOTSTRAP_TOKEN": secrets.token_hex(32),
     }
+    # Explizit gesetztes DOMAIN gewinnt gegen den Wert aus der Secrets-Datei
+    if os.environ.get("DOMAIN") and values.get("DOMAIN") != os.environ["DOMAIN"]:
+        values["DOMAIN"] = os.environ["DOMAIN"]
+        wanted["DOMAIN"] = os.environ["DOMAIN"]
+        wanted["AK_ADMIN_EMAIL"] = f"admin@{os.environ['DOMAIN']}"
     changed = False
     for k, default in wanted.items():
-        if not values.get(k):
+        if not values.get(k) or k in ("DOMAIN", "AK_ADMIN_EMAIL"):
             values[k] = default
             changed = True
     if changed:
