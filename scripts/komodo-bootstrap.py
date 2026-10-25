@@ -111,17 +111,14 @@ def load_secrets():
 
 
 def set_variable(name, value, secret):
-    body = {"name": name, "value": value, "is_secret": secret}
-    st, res = api("/write/CreateVariable", body)
+    """Variable anlegen; existiert sie schon, Wert setzen (Komodo-API: UpdateVariableValue)."""
+    st, res = api("/write/CreateVariable", {"name": name, "value": value, "is_secret": secret})
     if st == 200:
         return "angelegt"
-    # existiert bereits -> Update
-    st2, res2 = api("/write/UpdateVariable", {"name": name, "value": value})
-    if st2 == 200:
-        return "aktualisiert"
-    if st2 == 304 or st == 304:
-        return "unveraendert"
-    print(f"  WARNUNG Variable {name}: {st} {str(res)[:120]} / {st2} {str(res2)[:120]}")
+    st2, res2 = api("/write/UpdateVariableValue", {"name": name, "value": value})
+    if st2 in (200, 304):
+        return "aktualisiert" if st2 == 200 else "unveraendert"
+    print(f"  WARNUNG Variable {name}: create={st} update={st2} {str(res2)[:160]}")
     return "fehler"
 
 
