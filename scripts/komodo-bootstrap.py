@@ -193,6 +193,21 @@ def sync_stacks_from_toml():
     stacks = data.get("stack", [])
     st, current = api("/read/ListStacks")
     by_name = {s["name"]: s for s in (current or [])}
+    st, vars_ = api("/read/ListVariables")
+    values = {v["name"]: v.get("value", "") for v in (vars_ or [])}
+
+    def render(text):
+        """[[VAR]] durch den aktuellen Variablenwert ersetzen.
+
+        Komodo hasht die gespeicherte Config — bleibt dort der Platzhalter stehen,
+        merkt es eine Variablenänderung nicht und deployt nicht neu. Deshalb
+        schreiben wir die aufgelösten Werte.
+        """
+        if not isinstance(text, str):
+            return text
+        for k, v in values.items():
+            text = text.replace(f"[[{k}]]", str(v))
+        return text
 
     for decl in stacks:
         name = decl["name"]
@@ -200,6 +215,7 @@ def sync_stacks_from_toml():
             continue
         cfg = dict(decl.get("config") or {})
         cfg.setdefault("git_provider", "github.com")
+        cfg["environment"] = render(cfg.get("environment", ""))
         st, res = api("/write/UpdateStack", {"id": by_name[name]["id"], "config": cfg})
         print(f"  UpdateStack {name}: {st}")
         st, res = api("/execute/DeployStack", {"stack": name})
