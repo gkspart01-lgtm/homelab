@@ -60,6 +60,9 @@ done
 
 echo "=== 4. Variablen, Resource Sync, Deploy ==="
 KOMODO_PASS=$(grep '^KOMODO_INIT_ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)
+# Feste Secrets-Datei: nicht $HOME-abhaengig, sonst entstehen bei sudo/nicht-sudo
+# zwei Saetze Zufallswerte und die DB-Passwoerter laufen auseinander.
+export SECRETS_FILE=${SECRETS_FILE:-$REPO_DIR/stacks/komodo/secrets.env}
 KOMODO_PASS="$KOMODO_PASS" DOMAIN="$DOMAIN" \
   python3 "$REPO_DIR/scripts/komodo-bootstrap.py"
 
@@ -71,7 +74,7 @@ for i in $(seq 1 60); do
   fi
   sleep 5
 done
-AK_TOKEN=$(grep '^AK_BOOTSTRAP_TOKEN=' "$HOME/.komodo-homelab-secrets.env" 2>/dev/null | cut -d= -f2 || true)
+AK_TOKEN=$(grep '^AK_BOOTSTRAP_TOKEN=' "$SECRETS_FILE" 2>/dev/null | cut -d= -f2 || true)
 AUTHENTIK_URL=http://127.0.0.1:9000 AUTHENTIK_TOKEN="$AK_TOKEN" DOMAIN="$DOMAIN" \
   python3 "$REPO_DIR/scripts/authentik-bootstrap.py"
 # Outpost-Config greift erst nach einem Neustart des Servers
