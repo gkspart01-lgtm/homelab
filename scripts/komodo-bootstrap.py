@@ -8,7 +8,7 @@ Idempotent: vorhandene Variablen/Syncs werden aktualisiert.
 
 Aufruf (auf docker01 oder per SSH):
   KOMODO_PASS=$(grep KOMODO_INIT_ADMIN_PASSWORD stacks/komodo/.env | cut -d= -f2) \
-  DOMAIN=hl0.mehrwert.icu python3 scripts/komodo-bootstrap.py
+  DOMAIN=hl.mehrwert.icu python3 scripts/komodo-bootstrap.py
 
 Optionen (Umgebung):
   KOMODO_URL      default http://127.0.0.1:9120
@@ -32,7 +32,7 @@ import urllib.request
 URL = os.environ.get("KOMODO_URL", "http://127.0.0.1:9120").rstrip("/")
 USER = os.environ.get("KOMODO_USER", "admin")
 PASS = os.environ.get("KOMODO_PASS", "")
-DOMAIN = os.environ.get("DOMAIN", "hl0.mehrwert.icu")
+DOMAIN = os.environ.get("DOMAIN", "hl.mehrwert.icu")
 SECRETS_FILE = pathlib.Path(
     os.environ.get("SECRETS_FILE", os.path.expanduser("~/.komodo-homelab-secrets.env"))
 )

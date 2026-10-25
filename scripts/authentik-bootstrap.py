@@ -7,7 +7,7 @@ Legt an (idempotent):
   * ordnet den Provider dem "Embedded Outpost" zu
 
 Aufruf (Token aus stacks/authentik/.env):
-  AUTHENTIK_TOKEN=... DOMAIN=hl0.mehrwert.icu APP_HOST=whoami.hl0.mehrwert.icu \
+  AUTHENTIK_TOKEN=... DOMAIN=hl.mehrwert.icu APP_HOST=whoami.hl.mehrwert.icu \
       python3 scripts/authentik-bootstrap.py
 Optional: AUTHENTIK_URL (default http://127.0.0.1:9000) für den API-Zugang.
 """
@@ -22,7 +22,7 @@ import urllib.request
 
 URL = os.environ.get("AUTHENTIK_URL", "http://127.0.0.1:9000").rstrip("/")
 TOKEN = os.environ.get("AUTHENTIK_TOKEN", "")
-DOMAIN = os.environ.get("DOMAIN", "hl0.mehrwert.icu")
+DOMAIN = os.environ.get("DOMAIN", "hl.mehrwert.icu")
 APP_NAME = os.environ.get("APP_NAME", "whoami")
 APP_HOST = os.environ.get("APP_HOST", f"{APP_NAME}.{DOMAIN}")
 
@@ -145,6 +145,13 @@ def main():
     print(f"Outpost '{embedded['name']}' -> providers={providers}, "
           f"authentik_host=https://auth.{DOMAIN}: {st}")
 
+
+    # Brand-Domain: Basis für Redirects/Cookies (die Default-Brand heisst "authentik-default")
+    st, brands = api("GET", "/core/brands/")
+    for b in (brands or {}).get("results", []):
+        if b.get("default") and b.get("domain") != DOMAIN:
+            st, _ = api("PATCH", f"/core/brands/{b['brand_uuid']}/", {"domain": DOMAIN})
+            print(f"Brand-Domain -> {DOMAIN}: {st}")
     # 4. Kontrolle
     st, app = api("GET", f"/core/applications/{APP_NAME}/")
     print("Kontrolle:", st, {k: app.get(k) for k in ("name", "slug", "provider")} if isinstance(app, dict) else app)

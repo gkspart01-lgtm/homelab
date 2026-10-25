@@ -13,7 +13,7 @@ Der interaktive Login (Passwort, Callback, Sitzungs-Cookie) wird im Browser
 geprueft: https://<app>.<domain>/ -> Login bei https://auth.<domain>/ -> zurueck.
 
 Aufruf:
-  EDGE_IP=192.168.181.100 DOMAIN=hl0.mehrwert.icu APP_NAME=whoami \
+  EDGE_IP=192.168.181.100 DOMAIN=hl.mehrwert.icu APP_NAME=whoami \
       python3 scripts/smoke-test-edge.py
 """
 import json
@@ -26,7 +26,7 @@ import urllib.parse
 import urllib.request
 
 EDGE_IP = os.environ.get("EDGE_IP", "192.168.181.100")
-DOMAIN = os.environ.get("DOMAIN", "hl0.mehrwert.icu")
+DOMAIN = os.environ.get("DOMAIN", "hl.mehrwert.icu")
 APP = os.environ.get("APP_NAME", "whoami")
 APP_URL = f"https://{APP}.{DOMAIN}"
 AUTH_URL = f"https://auth.{DOMAIN}"

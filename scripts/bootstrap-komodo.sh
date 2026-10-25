@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO_DIR=${REPO_DIR:-/opt/homelab}
-DOMAIN=${DOMAIN:-hl0.mehrwert.icu}
+DOMAIN=${DOMAIN:-hl.mehrwert.icu}
 cd "$REPO_DIR"
 
 echo "=== 0. Docker ==="

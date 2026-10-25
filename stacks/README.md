@@ -63,7 +63,7 @@ Danach die SSO-Erstkonfiguration (Provider + Application + Embedded Outpost):
 ssh -f -N -L 19000:127.0.0.1:9000 debian@192.168.181.100
 AUTHENTIK_URL=http://127.0.0.1:19000 \
 AUTHENTIK_TOKEN=$(grep AUTHENTIK_BOOTSTRAP_TOKEN authentik/.env | cut -d= -f2) \
-DOMAIN=hl0.mehrwert.icu APP_NAME=whoami python3 scripts/authentik-bootstrap.py
+DOMAIN=hl.mehrwert.icu APP_NAME=whoami python3 scripts/authentik-bootstrap.py
 ```
 
 ## Wie die Kette funktioniert
@@ -96,7 +96,7 @@ zweiten für `PathPrefix(/outpost.goauthentik.io/)`, der auf den Outpost zeigt
 
 ```bash
 # Kette: Redirect, Gate, Health, Login-Flow (braucht kein öffentliches DNS)
-EDGE_IP=192.168.181.100 DOMAIN=hl0.mehrwert.icu python3 scripts/smoke-test-edge.py
+EDGE_IP=192.168.181.100 DOMAIN=hl.mehrwert.icu python3 scripts/smoke-test-edge.py
 
 # frp-Tunnel: frps als Testserver lokal, echte Traefik-Ports bleiben unberührt
 bash scripts/test-frp-tunnel.sh          # auf docker01 ausführen

@@ -16,7 +16,7 @@
 
 ```mermaid
 graph LR
-  F[Family devices] --> DNS[IONOS DNS<br/>service.hl0.mehrwert.icu]
+  F[Family devices] --> DNS[IONOS DNS<br/>service.hl.mehrwert.icu]
   DNS --> VPS[IONOS VPS · frps<br/>public TCP 443]
   VPS -->|frp tunnel, initiated from home| FRPC[frpc at home]
   FRPC --> RP[Traefik<br/>TLS termination + routing]
@@ -126,7 +126,7 @@ gantt
 - Exact drive inventory and whether the current largest disk should be data or parity.
 - Which services must be public; which may require VPN.
 - Whether Authelia is enough or family self-service makes authentik worthwhile.
-- IONOS DNS/API details and whether the wildcard is for `*.hl0.mehrwert.icu`.
+- IONOS DNS/API details and whether the wildcard is for `*.hl.mehrwert.icu`.
 - Final individual IPs within the two reserved ranges, after checking the DHCP pool.
 - Offsite-backup target and budget.
 
@@ -282,7 +282,7 @@ for s in edge authentik whoami; do ( cd stacks/$s && cp .env.example .env && \\
 ### 6. Verify the chain (no public DNS needed)
 
 ```bash
-EDGE_IP=192.168.181.100 DOMAIN=hl0.mehrwert.icu python3 scripts/smoke-test-edge.py
+EDGE_IP=192.168.181.100 DOMAIN=hl.mehrwert.icu python3 scripts/smoke-test-edge.py
 # Expected:
 # 1) OK HTTP :80 -> HTTPS
 # 2) OK App ohne Sitzung -> authentik-Login
@@ -304,10 +304,10 @@ bash scripts/test-frp-tunnel.sh
 Add to `/etc/hosts` (Linux/macOS) or `C:\Windows\System32\drivers\etc\hosts` (Windows):
 
 ```
-192.168.181.100 auth.hl0.mehrwert.icu whoami.hl0.mehrwert.icu traefik.hl0.mehrwert.icu
+192.168.181.100 auth.hl.mehrwert.icu whoami.hl.mehrwert.icu traefik.hl.mehrwert.icu
 ```
 
-Open `https://whoami.hl0.mehrwert.icu/` → login at `https://auth.hl0.mehrwert.icu/`
+Open `https://whoami.hl.mehrwert.icu/` → login at `https://auth.hl.mehrwert.icu/`
 (user `akadmin`, password from `AUTHENTIK_BOOTSTRAP_PASSWORD`) → back to whoami with
 `X-Authentik-Username` headers visible.
 
@@ -329,16 +329,16 @@ gated by authentik (details: `stacks/README.md`):
 | Stack | Role | Address |
 |---|---|---|
 | `edge` | Traefik v3.7 — HTTP→HTTPS, TLS, Docker-label routing, dashboard behind SSO | `:80`, `:443` |
-| `authentik` | SSO / identity provider (2026.8.5) + PostgreSQL 16 + Redis 7 | `https://auth.hl0.mehrwert.icu` |
-| `whoami` | Test service proving routing + forward-auth | `https://whoami.hl0.mehrwert.icu` |
+| `authentik` | SSO / identity provider (2026.8.5) + PostgreSQL 16 + Redis 7 | `https://auth.hl.mehrwert.icu` |
+| `whoami` | Test service proving routing + forward-auth | `https://whoami.hl.mehrwert.icu` |
 | `frp` | frpc client for the tunnel to the public VPS (frps lives there) | outbound to `<VPS>:7000` |
 
 `scripts/smoke-test-edge.py` verifies the chain without public DNS (hostnames are
 resolved to the edge IP, self-signed TLS accepted):
 
 ```
-1) OK   HTTP :80 leitet auf HTTPS — 301 -> https://whoami.hl0.mehrwert.icu/
-2) OK   App ohne Sitzung -> authentik-Login — 302 -> https://auth.hl0.mehrwert.icu/application/o/authorize/
+1) OK   HTTP :80 leitet auf HTTPS — 301 -> https://whoami.hl.mehrwert.icu/
+2) OK   App ohne Sitzung -> authentik-Login — 302 -> https://auth.hl.mehrwert.icu/application/o/authorize/
 3) OK   authentik-Health durch Traefik — 200
 4) OK   authorize leitet in den Login-Flow — .../if/flow/default-authentication-flow/
 5) OK   Flow-Executor liefert Login-Maske — ak-stage-identification
