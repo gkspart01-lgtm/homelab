@@ -1,0 +1,20 @@
+# Testkonfiguration fuer scripts/test-frp-tunnel.sh (Ports 18080/18443 statt 80/443,
+# damit der echte Traefik auf 80/443 unberuehrt bleibt).
+serverAddr = "127.0.0.1"
+serverPort = 17000
+auth.method = "token"
+auth.token = "testtoken"
+
+[[proxies]]
+name = "web-test"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 80
+remotePort = 18080
+
+[[proxies]]
+name = "websecure-test"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 443
+remotePort = 18443

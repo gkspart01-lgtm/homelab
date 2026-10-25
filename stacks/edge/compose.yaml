@@ -1,0 +1,38 @@
+# Stack "edge": Traefik als Reverse-Proxy und TLS-Terminator.
+# Öffentlich erreichbar sind nur 80/443; das Dashboard hängt hinter authentik.
+services:
+  traefik:
+    image: traefik:v3.7.16
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - traefik_acme:/letsencrypt
+    environment:
+      # Für Let's Encrypt DNS-01 (IONOS) — leer lassen = selbstsigniertes Zertifikat
+      IONOS_API_KEY: "${IONOS_API_KEY:-}"
+      IONOS_API_SECRET: "${IONOS_API_SECRET:-}"
+      ACME_EMAIL: "${ACME_EMAIL:-}"
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      # Dashboard: nur über den Auth-Host erreichbar und mit authentik geschützt
+      - traefik.http.routers.dashboard.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.dashboard.entrypoints=websecure
+      - traefik.http.routers.dashboard.tls=true
+      - traefik.http.routers.dashboard.service=api@internal
+      - traefik.http.routers.dashboard.middlewares=authentik@file
+
+networks:
+  edge:
+    name: edge
+
+volumes:
+  traefik_acme:

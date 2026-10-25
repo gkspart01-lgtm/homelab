@@ -1,0 +1,11 @@
+# Stack "frp": Client-Seite des Tunnels zum öffentlichen VPS (frps läuft dort).
+# Der Tunnel wird vom Heimnetz aus aufgebaut — der VPS braucht keine Verbindung nach innen.
+services:
+  frpc:
+    image: fatedier/frpc:v0.71.1
+    container_name: frpc
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./frpc.toml:/frp/frpc.toml:ro
+    command: ["-c", "/frp/frpc.toml"]

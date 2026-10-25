@@ -193,3 +193,46 @@ privileges show up as HTTP 403 during `apply` (clone, cloud-init drive, agent qu
   nested PVE (PVE in a VM in a VM) OVMF does not initialise.
 - HAOS needs no cloud-init: address via DHCP, set the fixed address in the HA UI or as
   a DHCP reservation on its MAC.
+
+## Edge stack on `docker01` (2026-10-25)
+
+Three Compose stacks from `stacks/` run on `docker01`, all routed through Traefik and
+gated by authentik (details: `stacks/README.md`):
+
+| Stack | Role | Address |
+|---|---|---|
+| `edge` | Traefik v3.7 — HTTP→HTTPS, TLS, Docker-label routing, dashboard behind SSO | `:80`, `:443` |
+| `authentik` | SSO / identity provider (2026.8.5) + PostgreSQL 16 + Redis 7 | `https://auth.hl0.mehrwert.icu` |
+| `whoami` | Test service proving routing + forward-auth | `https://whoami.hl0.mehrwert.icu` |
+| `frp` | frpc client for the tunnel to the public VPS (frps lives there) | outbound to `<VPS>:7000` |
+
+`scripts/smoke-test-edge.py` verifies the chain without public DNS (hostnames are
+resolved to the edge IP, self-signed TLS accepted):
+
+```
+1) OK   HTTP :80 leitet auf HTTPS — 301 -> https://whoami.hl0.mehrwert.icu/
+2) OK   App ohne Sitzung -> authentik-Login — 302 -> https://auth.hl0.mehrwert.icu/application/o/authorize/
+3) OK   authentik-Health durch Traefik — 200
+4) OK   authorize leitet in den Login-Flow — .../if/flow/default-authentication-flow/
+5) OK   Flow-Executor liefert Login-Maske — ak-stage-identification
+```
+
+`scripts/test-frp-tunnel.sh` runs frps as a local stand-in and proves the tunnel carries
+real traffic: HTTP through the tunnel answers `301 -> https://whoami...`, HTTPS through
+the tunnel answers `302 -> https://auth.../application/o/authorize/` (i.e. the full
+forward-auth chain survives the tunnel).
+
+Two findings worth keeping:
+
+- The **embedded** authentik outpost builds browser URLs from `AUTHENTIK_HOST` (and from
+  `authentik_host` in the outpost's DB config, which wins). `AUTHENTIK_HOST_BROWSER`
+  only applies to standalone outposts — without the right value the login redirect
+  points at `http://localhost/`.
+- Every protected host needs a **second Traefik router** for
+  `PathPrefix(/outpost.goauthentik.io/)` pointing at the outpost; otherwise the
+  forward-auth callback cannot complete.
+
+Open for the public path: an IONOS VPS running `frps` (config template in
+`stacks/frp/frps.toml.example`), the DNS records for `auth.` and `whoami.`, and the
+IONOS DNS-API credentials to switch Traefik from the self-signed certificate to
+Let's Encrypt DNS-01.

@@ -1,0 +1,52 @@
+# Traefik v3 — statische Konfiguration (IaC-Ebene 3, Stack "edge")
+#
+# Entrypoints: :80 -> Redirect auf :443, :443 = Websecure.
+# Provider: Docker (Labels) + Datei (dynamisch, Middlewares/TLS).
+# TLS: Standard ist das selbstsignierte Traefik-Zertifikat. Der Let's-Encrypt-
+#      DNS-01-Resolver (IONOS) ist vorbereitet und wird aktiviert, sobald
+#      IONOS_API_KEY/IONOS_API_SECRET in der Umgebung stehen (siehe unten).
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+api:
+  dashboard: true
+  insecure: true # nur im Container-Netz/127.0.0.1 erreichbar, nicht nach außen veröffentlicht
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: edge
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO
+accessLog: {}
+
+# --- TLS ---------------------------------------------------------------------
+# Ohne Resolver nutzt Traefik sein selbstsigniertes Default-Zertifikat (Lab).
+# Für öffentliches TLS diesen Block einkommentieren und IONOS_API_KEY /
+# IONOS_API_SECRET (sowie ACME_EMAIL) als Umgebungsvariablen setzen:
+#
+# certificatesResolvers:
+#   ionos:
+#     acme:
+#       email: "{{ env \"ACME_EMAIL\" }}"
+#       storage: /letsencrypt/acme.json
+#       dnsChallenge:
+#         provider: ionos
+#         resolvers:
+#           - "1.1.1.1:53"
+#           - "9.9.9.9:53"

@@ -1,0 +1,12 @@
+# frp-Server (läuft auf dem öffentlichen VPS, NICHT im Heimnetz).
+# Der Tunnel wird von zu Hause aufgebaut; der VPS braucht keine Verbindung nach innen.
+bindPort = 7000
+auth.method = "token"
+auth.token = "<FRP_TOKEN>"
+
+# Nur fuer den Test-Tunnel (TCP-Proxies binden ihre Ports selbst):
+# vhostHTTPPort = 8080
+# vhostHTTPSPort = 8443
+
+# Empfohlen: TLS zwischen Client und Server
+transport.tls.force = true

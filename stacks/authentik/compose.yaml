@@ -1,0 +1,101 @@
+# Stack "authentik": Identity-Provider + SSO, PostgreSQL und Redis.
+# Erreichbar nur über Traefik (https://auth.<DOMAIN>); die DB ist nicht veröffentlicht.
+x-authentik-env: &authentik-env
+  AUTHENTIK_REDIS__HOST: redis
+  AUTHENTIK_POSTGRESQL__HOST: postgresql
+  AUTHENTIK_POSTGRESQL__USER: authentik
+  AUTHENTIK_POSTGRESQL__NAME: authentik
+  AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+  AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+  AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+  # Der EMBEDDED Outpost baut Browser-URLs gegen AUTHENTIK_HOST (nicht
+  # AUTHENTIK_HOST_BROWSER, das gilt nur fuer Standalone-Outposts). Ohne diese
+  # Variable landet der Forward-Auth-Redirect auf http://localhost/.
+  AUTHENTIK_HOST: https://auth.${DOMAIN}
+  # Einmal-Bootstrap beim ersten Start (danach aus der .env entfernen):
+  AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL}
+  AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD}
+  AUTHENTIK_BOOTSTRAP_TOKEN: ${AUTHENTIK_BOOTSTRAP_TOKEN}
+
+services:
+  postgresql:
+    image: postgres:16-alpine3.24
+    container_name: authentik-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+    volumes:
+      - authentik_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine3.21
+    container_name: authentik-redis
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+
+  server:
+    image: ghcr.io/goauthentik/server:2026.8.5
+    container_name: authentik-server
+    restart: unless-stopped
+    command: server
+    environment: *authentik-env
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    # Nur für Bootstrap/API von localhost aus (kann nach dem Setup entfernt werden)
+    ports:
+      - "127.0.0.1:9000:9000"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [backend, edge]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.authentik.rule=Host(`auth.${DOMAIN}`)
+      - traefik.http.routers.authentik.entrypoints=websecure
+      - traefik.http.routers.authentik.tls=true
+      - traefik.http.routers.authentik.middlewares=security-headers@file
+      - traefik.http.services.authentik.loadbalancer.server.port=9000
+
+  worker:
+    image: ghcr.io/goauthentik/server:2026.8.5
+    container_name: authentik-worker
+    restart: unless-stopped
+    command: worker
+    environment: *authentik-env
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [backend]
+
+networks:
+  backend:
+  edge:
+    external: true
+
+volumes:
+  authentik_pgdata:
+  authentik_media:
+  authentik_templates:

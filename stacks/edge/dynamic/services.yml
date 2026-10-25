@@ -1,0 +1,9 @@
+# Service-Provider: der authentik-Outpost, erreichbar fuer Router auf beliebigen Domains.
+# Wird von den Apps genutzt, damit /outpost.goauthentik.io/* auf der App-Domain
+# beim Outpost landet (Callback des Forward-Auth-Flows).
+http:
+  services:
+    authentik:
+      loadBalancer:
+        servers:
+          - url: "http://authentik-server:9000"
