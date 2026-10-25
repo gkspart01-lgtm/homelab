@@ -135,14 +135,22 @@ def main():
     if not embedded:
         sys.exit("Embedded Outpost nicht gefunden")
     providers = list(dict.fromkeys(embedded.get("providers", []) + [prov_pk]))
-    st, out = api("PATCH", f"/outposts/instances/{embedded['pk']}/", {"providers": providers})
-    print(f"Outpost '{embedded['name']}' -> providers={providers}: {st}")
+    # Der EMBEDDED Outpost baut Browser-URLs aus config.authentik_host; der DB-Wert
+    # gewinnt gegen die Env-Variable. Ohne ihn zeigt der Login auf http://localhost/.
+    cfg = dict(embedded.get("config") or {})
+    cfg["authentik_host"] = f"https://auth.{DOMAIN}"
+    cfg["authentik_host_browser"] = f"https://auth.{DOMAIN}"
+    st, out = api("PATCH", f"/outposts/instances/{embedded['pk']}/",
+                  {"providers": providers, "config": cfg})
+    print(f"Outpost '{embedded['name']}' -> providers={providers}, "
+          f"authentik_host=https://auth.{DOMAIN}: {st}")
 
     # 4. Kontrolle
     st, app = api("GET", f"/core/applications/{APP_NAME}/")
     print("Kontrolle:", st, {k: app.get(k) for k in ("name", "slug", "provider")} if isinstance(app, dict) else app)
     print(f"Forward-Auth-URL für Traefik: https://auth.{DOMAIN}/outpost.goauthentik.io/auth/traefik")
     print(f"Geschützte App: https://{APP_HOST}/")
+    print("Hinweis: den authentik-server danach einmal neu starten (neue Outpost-Config).")
 
 
 if __name__ == "__main__":

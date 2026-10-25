@@ -181,7 +181,7 @@ def main():
     for srv in servers or []:
         if srv["name"] != "docker01":
             continue
-        addr = (srv.get("config") or {}).get("address", "")
+        addr = str((srv.get("config") or {}).get("address") or "").rstrip("/")
         if addr != "https://periphery:8120":
             api("/write/UpdateServer", {"id": srv["id"], "config": {
                 "address": "https://periphery:8120", "insecure_tls": True, "enabled": True}})

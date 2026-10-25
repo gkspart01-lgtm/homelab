@@ -67,7 +67,11 @@ AK_TOKEN=$(grep '^AK_BOOTSTRAP_TOKEN=' "$HOME/.komodo-homelab-secrets.env" 2>/de
 AUTHENTIK_URL=http://127.0.0.1:9000 AUTHENTIK_TOKEN="$AK_TOKEN" DOMAIN="$DOMAIN" \
   python3 "$REPO_DIR/scripts/authentik-bootstrap.py"
 # Outpost-Config greift erst nach einem Neustart des Servers
-( cd /etc/komodo/stacks/authentik && docker compose restart server >/dev/null 2>&1 ) || true
+docker restart authentik-server >/dev/null 2>&1 || true
+for i in $(seq 1 30); do
+  curl -fsS -m 3 -o /dev/null http://127.0.0.1:9000/-/health/ready/ 2>/dev/null && break
+  sleep 5
+done
 
 echo "=== 6. Status ==="
 docker ps --format '{{.Names}}\t{{.Status}}' | sort
