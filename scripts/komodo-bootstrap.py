@@ -211,7 +211,7 @@ def sync_stacks_from_toml():
 
     for decl in stacks:
         name = decl["name"]
-        if name not in by_name:
+        if name not in by_name or decl.get("deploy") is False:
             continue
         cfg = dict(decl.get("config") or {})
         cfg.setdefault("git_provider", "github.com")
@@ -246,6 +246,14 @@ def main():
     for name in ("AK_DB_PASS", "AK_SECRET_KEY", "AK_ADMIN_EMAIL", "AK_ADMIN_PASS",
                  "AK_BOOTSTRAP_TOKEN"):
         print(f"  {name}:", set_variable(name, vals[name], name != "AK_ADMIN_EMAIL"))
+
+    # frp-Zugang nur anlegen, wenn bekannt (VPS-Adresse + Server-Token)
+    if os.environ.get("FRP_SERVER_ADDR"):
+        print("frp-Variablen:")
+        print("  FRP_SERVER_ADDR:", set_variable("FRP_SERVER_ADDR", os.environ["FRP_SERVER_ADDR"], False))
+        print("  FRP_USER:", set_variable("FRP_USER", os.environ.get("FRP_USER", "hl"), False))
+        if os.environ.get("FRP_TOKEN"):
+            print("  FRP_TOKEN:", set_variable("FRP_TOKEN", os.environ["FRP_TOKEN"], True))
 
     ensure_sync()
     run_sync()

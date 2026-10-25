@@ -1,0 +1,24 @@
+# frp-Client — wird von Komodo aus komodo/homelab.toml erzeugt (config_files),
+# damit Adresse/Token/Domain nicht im Repo stehen.
+user = "[[FRP_USER]]"
+serverAddr = "[[FRP_SERVER_ADDR]]"
+serverPort = 7000
+auth.method = "token"
+auth.token = "[[FRP_TOKEN]]"
+log.to = "console"
+log.level = "info"
+
+# Der VPS terminiert TLS (Let's Encrypt auf :443) und reicht Klartext an frps weiter.
+# Deshalb lokaler Port = Traefik-HTTP. ACHTUNG: Traefik leitet :80 auf :443 um —
+# für den Tunnel braucht es einen eigenen, nicht umleitenden Entrypoint (siehe README).
+[[proxies]]
+name = "hl-web"
+type = "http"
+localIP = "192.168.181.100"
+localPort = 80
+customDomains = [
+  "[[DOMAIN]]",
+  "auth.[[DOMAIN]]",
+  "whoami.[[DOMAIN]]",
+  "komodo.[[DOMAIN]]",
+]

@@ -81,3 +81,41 @@ file_paths = ["compose.yaml"]
 environment = """
 DOMAIN = [[DOMAIN]]
 """
+
+# --- 4. Tunnel zum oeffentlichen VPS (vorbereitet, noch nicht aktiv) ----------
+# Der frps dort verlangt laut Token-Datei (user "hl", ports [8082],
+# domains ["hl.mehrwert.icu"]) eine andere Anmeldung als der reine User-Token
+# (Login-Fehler: "token in login doesn't match token from configuration").
+# Sobald der Server-Token / die Port-Logik bekannt ist: deploy = true setzen und
+# FRP_SERVER_ADDR/FRP_TOKEN/FRP_USER als Komodo-Variablen hinterlegen.
+[[stack]]
+name = "frp"
+description = "frpc-Tunnel zum VPS (frps dort terminiert TLS und reicht Klartext weiter)"
+tags = ["edge"]
+deploy = false
+after = ["edge"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/frp"
+file_paths = ["compose.yaml"]
+
+[[stack.config.config_files]]
+path = "frpc.toml"
+content = """
+user = "[[FRP_USER]]"
+serverAddr = "[[FRP_SERVER_ADDR]]"
+serverPort = 7000
+auth.method = "token"
+auth.token = "[[FRP_TOKEN]]"
+
+[[proxies]]
+name = "hl-web"
+type = "http"
+localIP = "192.168.181.100"
+localPort = 80
+customDomains = ["[[DOMAIN]]", "auth.[[DOMAIN]]", "whoami.[[DOMAIN]]", "komodo.[[DOMAIN]]"]
+"""

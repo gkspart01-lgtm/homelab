@@ -40,9 +40,23 @@ Zwei bewusste Entscheidungen:
   IdP-Ausfall darf den Zugang zum Reparaturwerkzeug nicht blockieren. Komodo hat eine
   eigene Anmeldung (`admin` + Passwort aus `stacks/komodo/.env`), die UI ist nur per TLS
   erreichbar.
-- **`frp` ist noch nicht im Sync**, weil `frpc.toml` die VPS-Adresse und den Token braucht.
-  Sobald der VPS steht: Datei auf dem Host ablegen und den Stack in `komodo/homelab.toml`
-  ergänzen (`files_on_host` oder `environment` + eigener Eintrag).
+- **`frp` ist deklariert, aber `deploy = false`.** Der Stack steht in `komodo/homelab.toml`,
+  `bootstrap-komodo.py` überspringt ihn. Aktivieren, sobald die VPS-Seite geklärt ist:
+
+  ```bash
+  FRP_SERVER_ADDR=<vps> FRP_USER=hl FRP_TOKEN=<server-token> \
+    python3 scripts/komodo-bootstrap.py     # legt die Variablen an
+  # dann in komodo/homelab.toml bei [[stack]] name="frp" -> deploy = true, Sync ausführen
+  ```
+
+  Stand der VPS-Prüfung (212.227.139.254): `:7000` nimmt Verbindungen an, `:80` antwortet
+  als frp-vhost (`404 page not found` ohne passenden Proxy), `:443` hat ein
+  Let's-Encrypt-Zertifikat für `hl.mehrwert.icu` und liefert `502` (TLS-Terminator ohne
+  erreichbares Backend). Ein Login mit dem User-Token aus `frps-tokens.toml`
+  (`user = "hl"`, `ports = [8082]`, `domains = ["hl.mehrwert.icu"]`) wird mit
+  *"token in login doesn't match token from configuration"* abgelehnt — der Server
+  verlangt offenbar seinen globalen `auth.token`; die Port-/Domain-Zuordnung
+  (`ports = [8082]`) muss ebenfalls geklärt werden.
 
 ## Reihenfolge (manuell, ohne Komodo)
 
