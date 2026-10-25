@@ -162,38 +162,156 @@ OpenTofu budget output: `ram_total_mb = 8704`, `ram_reserve_mb = 2560` (host 11 
 Host-side ballooning (set on the *outer* PVE, not inside pve2): `memory=12288`,
 `balloon=8192` — the outer host may reclaim 4 GB, the guest never drops below 8 GB.
 
-### Running it (operator workstation, outside pve2)
+## Reproduce current state (from zero)
+
+All commands run from the operator workstation (outside pve2). The OpenTofu state lives
+in `tofu/terraform.tfstate` (gitignored).
+
+### 1. Provision pve2 + template + guests via OpenTofu
 
 ```bash
-cp tofu/nodes.auto.tfvars.example tofu/nodes.auto.tfvars   # API token + SSH key path
-cd tofu && tofu init && tofu plan && tofu apply
+# a) On the outer PVE: create VM pve2 (11264 MB RAM, 319 GB disk), rename to pve2.fritz.box,
+#    disable Enterprise repos, enable no-subscription, add SSH key, create API token
+#    tofu@pve!opentofu with role Tofu (see privileges below).
+#    → This step is one-time manual work; everything after is IaC.
+
+# b) On pve2: build the Debian-13-cloud-template (VM 9000)
+ssh root@192.168.181.99 'bash -s' < tofu/build-template9000.sh
+#    Result: VM 9000 template, 10 GB disk, cloud-init, qemu-guest-agent, cleaned.
+
+# c) Operator workstation: copy tfvars + set credentials
+cd tofu
+cp nodes.auto.tfvars.example nodes.auto.tfvars
+#    Edit nodes.auto.tfvars:
+#      endpoint      = "https://192.168.181.99:8006/api2/json"
+#      token_id      = "tofu@pve!opentofu"
+#      token_secret  = "<your-token-secret>"
+#      ssh_private_key = "~/.ssh/id_ed25519"   # path to the PRIVATE key file
+
+# d) Initialize and apply
+tofu init
+tofu plan
+tofu apply
+#    Creates: docker01 (VM 200), probe (LXC 220), haos (VM 201).
+#    Outputs: ram_total_mb, ram_reserve_mb, ipv4 map.
 ```
 
-The provider needs SSH to the node for image imports and cloud-init; pass the **key
-content** (`private_key = file(pathexpand(...))`), not the path.
-
-### API token privileges (proxmox role `Tofu`, token `tofu@pve!opentofu`)
-
-`VM.Allocate VM.Audit VM.Clone VM.Config.CPU VM.Config.CDROM VM.Config.Cloudinit
+API token role `Tofu` privileges (on pve2):
+```
+VM.Allocate VM.Audit VM.Clone VM.Config.CPU VM.Config.CDROM VM.Config.Cloudinit
 VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options
 VM.GuestAgent.Audit VM.GuestAgent.Unrestricted VM.PowerMgmt Datastore.Allocate
-Datastore.AllocateSpace Datastore.Audit Pool.Allocate SDN.Use Sys.Audit`
+Datastore.AllocateSpace Datastore.Audit Pool.Allocate SDN.Use Sys.Audit
+```
+Missing `SDN.Use`, `VM.Config.Cloudinit`, `VM.Config.CDROM` or GuestAgent audit
+privileges cause HTTP 403 during `apply`.
 
-Missing `SDN.Use`, `VM.Config.Cloudinit`, `VM.Config.CDROM` or the GuestAgent audit
-privileges show up as HTTP 403 during `apply` (clone, cloud-init drive, agent query).
+### 2. Ballooning on the outer PVE (optional but recommended)
 
-### Notes learned during the rehearsal
+On the physical Proxmox host (the one running pve2 as a nested VM):
 
-- VM disks import from a volume ID with `import_from` (`local:import/<file>.qcow2`);
-  `file_id` would try to attach the image instead of importing it.
-- `qm create --sshkeys` on the CLI expects a **file path**, the API expects a
-  URL-encoded string.
-- Home Assistant OS is UEFI-only and cannot be cloned from the Debian template, so it
-  has its own resource (`tofu/haos.tf`). UEFI must work on the target node; inside a
-  nested PVE (PVE in a VM in a VM) OVMF does not initialise.
-- HAOS needs no cloud-init: address via DHCP, set the fixed address in the HA UI or as
-  a DHCP reservation on its MAC.
+```bash
+# VM-ID of pve2 on the outer host (e.g. 102):
+qm set <ID> --memory 12288 --balloon 8192
+qm stop <ID> && qm start <ID>
+#    Now the outer host may reclaim up to 4 GB; pve2 keeps min. 8 GB.
+```
 
+### 3. Bootstrap docker01 (Docker Engine + Compose plugin)
+
+```bash
+# Run as root on docker01 (or via sudo from debian user):
+cd /opt/homelab/scripts
+sudo bash bootstrap-docker.sh
+#    Installs docker-ce, docker-compose-plugin, enables docker service,
+#    adds debian user to docker group.
+```
+
+### 4. Deploy the Edge stacks (Traefik + authentik + whoami + frp)
+
+```bash
+# On docker01 (or from operator workstation via SSH):
+docker network create edge
+
+cd /opt/homelab/stacks/edge
+cp .env.example .env            # set DOMAIN=hl0.mehrwert.icu
+docker compose up -d
+
+cd ../authentik
+cp .env.example .env
+#    Generate secrets:
+#    AUTHENTIK_POSTGRESQL_PASSWORD=$(openssl rand -hex 24)
+#    AUTHENTIK_SECRET_KEY=$(openssl rand -base64 48 | tr -d "\n")
+#    AUTHENTIK_BOOTSTRAP_TOKEN=$(openssl rand -hex 32)
+#    AUTHENTIK_BOOTSTRAP_PASSWORD=CHANGE_ME   # change immediately after first login
+#    Paste into .env
+docker compose up -d
+#    Wait ~60s for authentik health endpoint and blueprints (11 default flows).
+
+cd ../whoami
+cp .env.example .env            # DOMAIN=hl0.mehrwert.icu
+docker compose up -d
+```
+
+### 5. Authentik SSO bootstrap (one-time API calls)
+
+```bash
+# On operator workstation: SSH tunnel to authentik's localhost API port
+ssh -f -N -L 19000:127.0.0.1:9000 debian@192.168.181.100
+
+# Run bootstrap (creates Proxy Provider, Application, wires Embedded Outpost,
+# patches outpost config with authentik_host):
+AUTHENTIK_URL=http://127.0.0.1:19000 \
+AUTHENTIK_TOKEN=$(grep AUTHENTIK_BOOTSTRAP_TOKEN stacks/authentik/.env | cut -d= -f2) \
+DOMAIN=hl0.mehrwert.icu APP_NAME=whoami \
+python3 scripts/authentik-bootstrap.py
+
+# Close tunnel when done
+pkill -f "19000:127.0.0.1:9000"
+```
+
+### 6. Verify the chain (no public DNS needed)
+
+```bash
+EDGE_IP=192.168.181.100 DOMAIN=hl0.mehrwert.icu python3 scripts/smoke-test-edge.py
+# Expected:
+# 1) OK HTTP :80 -> HTTPS
+# 2) OK App ohne Sitzung -> authentik-Login
+# 3) OK authentik-Health durch Traefik
+# 4) OK authorize leitet in den Login-Flow
+# 5) OK Flow-Executor liefert Login-Maske
+```
+
+### 7. (Optional) Test the frp tunnel locally
+
+```bash
+# On docker01: runs a throwaway frps + frpc on test ports 18080/18443
+bash scripts/test-frp-tunnel.sh
+# Proves: HTTP->301 to HTTPS, HTTPS->302 to authentik login (full chain survives tunnel).
+```
+
+### 8. Browser test (with local hosts override)
+
+Add to `/etc/hosts` (Linux/macOS) or `C:\Windows\System32\drivers\etc\hosts` (Windows):
+
+```
+192.168.181.100 auth.hl0.mehrwert.icu whoami.hl0.mehrwert.icu traefik.hl0.mehrwert.icu
+```
+
+Open `https://whoami.hl0.mehrwert.icu/` → login at `https://auth.hl0.mehrwert.icu/`
+(user `akadmin`, password from `AUTHENTIK_BOOTSTRAP_PASSWORD`) → back to whoami with
+`X-Authentik-Username` headers visible.
+
+---
+
+## What is NOT yet done (open items)
+
+1. **Public VPS**: frps install on IONOS VPS, tunnel with real ports 80/443.
+2. **IONOS DNS**: A records for `auth.`, `whoami.`, `traefik.`, later `*.` → VPS IP.
+3. **Let's Encrypt DNS-01**: put `IONOS_API_KEY`, `IONOS_API_SECRET`, `ACME_EMAIL`
+   into `stacks/edge/.env`; Traefik will switch from self-signed to valid certs.
+4. **Timezone on HA**: still UTC → set to Europe/Berlin in HA UI (Settings → System → General).
+5. **Restore test** (Gate before further apps): `tofu destroy -target=...` + re-apply proves State → running guest.
 ## Edge stack on `docker01` (2026-10-25)
 
 Three Compose stacks from `stacks/` run on `docker01`, all routed through Traefik and
