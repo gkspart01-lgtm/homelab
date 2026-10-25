@@ -1,0 +1,77 @@
+# Stack "komodo": Deployment-Plattform (Core + Periphery + MongoDB).
+# Zweck: nach OpenTofu ist das der einzige verbleibende Aufbauschritt —
+# Komodo deployt danach alle uebrigen Stacks aus dem Git-Repo (komodo/homelab.toml).
+services:
+  mongo:
+    image: mongo:7
+    container_name: komodo-mongo
+    restart: unless-stopped
+    command: --quiet --wiredTigerCacheSizeGB 0.25
+    labels:
+      # Komodo soll Mongo nicht per StopAllContainers stoppen
+      - komodo.skip=
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${KOMODO_DATABASE_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${KOMODO_DATABASE_PASSWORD}
+    volumes:
+      - komodo_mongo_data:/data/db
+      - komodo_mongo_config:/data/configdb
+
+  core:
+    image: ghcr.io/moghtech/komodo-core:2
+    container_name: komodo-core
+    init: true
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file: .env
+    # Nur auf localhost: UI/API für Bootstrap, sonst über Traefik (komodo.<domain>, hinter SSO)
+    ports:
+      - "127.0.0.1:9120:9120"
+    environment:
+      KOMODO_DATABASE_ADDRESS: mongo:27017
+    volumes:
+      - komodo_keys:/config/keys
+      - komodo_backups:/backups
+    networks:
+      - default
+      - edge
+    labels:
+      - komodo.skip=
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.komodo.rule=Host(`komodo.${DOMAIN}`)
+      - traefik.http.routers.komodo.entrypoints=websecure
+      - traefik.http.routers.komodo.tls=true
+      - traefik.http.routers.komodo.middlewares=authentik@file,security-headers@file
+      - traefik.http.services.komodo.loadbalancer.server.port=9120
+      - traefik.http.routers.komodo-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.komodo-outpost.entrypoints=websecure
+      - traefik.http.routers.komodo-outpost.tls=true
+      - traefik.http.routers.komodo-outpost.priority=100
+      - traefik.http.routers.komodo-outpost.service=authentik@file
+
+  periphery:
+    image: ghcr.io/moghtech/komodo-periphery:2
+    container_name: komodo-periphery
+    init: true
+    restart: unless-stopped
+    depends_on:
+      - core
+    env_file: .env
+    volumes:
+      - komodo_keys:/config/keys
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/proc
+      # Von Komodo verwaltete Stacks liegen hier (Host- und Container-Pfad identisch)
+      - /etc/komodo:/etc/komodo
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  komodo_mongo_data:
+  komodo_mongo_config:
+  komodo_keys:
+  komodo_backups:

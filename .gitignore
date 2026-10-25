@@ -2,3 +2,4 @@ stacks/*/.env
 stacks/frp/frpc.toml
 stacks/frp/test-config.toml
 tofu/tfplan
+komodo/*.local.toml

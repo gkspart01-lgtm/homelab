@@ -1,0 +1,83 @@
+# Komodo Resource Sync — deklariert Server, Stacks und deren Deploy-Reihenfolge.
+#
+# Nach `tofu apply` ist Komodo der einzige manuelle Startpunkt:
+#   scripts/bootstrap-komodo.sh   (docker01: Komodo hochfahren)
+#   scripts/komodo-bootstrap.py   (Sync anlegen + ausführen)
+# Ab dann kommen alle Stacks hieraus. Änderung = Commit + Sync (oder Webhook).
+#
+# Secrets stehen NICHT in dieser Datei. Sie sind Komodo-Variablen (is_secret),
+# einmalig per scripts/komodo-bootstrap.py gesetzt: DOMAIN, AK_DB_PASS,
+# AK_SECRET_KEY, AK_ADMIN_EMAIL, AK_ADMIN_PASS, AK_BOOTSTRAP_TOKEN.
+# Interpolation: [[VAR]] innerhalb der stack.config-Werte.
+
+[[server]]
+name = "docker01"
+description = "Docker-Host fuer den Edge-Stack (VM 200 auf pve2, 192.168.181.100)"
+tags = ["homelab", "docker"]
+
+[server.config]
+# Periphery laeuft im selben Compose-Netz und liefert selbstsigniertes TLS
+address = "https://periphery:8120"
+insecure_tls = true
+enabled = true
+
+# --- 1. Reverse Proxy -------------------------------------------------------
+[[stack]]
+name = "edge"
+description = "Traefik v3: HTTP->HTTPS, TLS, Routing per Docker-Label, Dashboard hinter SSO"
+tags = ["edge", "prod"]
+deploy = true
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/edge"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+"""
+
+# --- 2. Identity Provider ---------------------------------------------------
+[[stack]]
+name = "authentik"
+description = "authentik 2026.8 + PostgreSQL 16 + Redis 7 (SSO, Forward-Auth)"
+tags = ["edge", "prod"]
+deploy = true
+after = ["edge"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/authentik"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+AUTHENTIK_POSTGRESQL_PASSWORD = [[AK_DB_PASS]]
+AUTHENTIK_SECRET_KEY = [[AK_SECRET_KEY]]
+AUTHENTIK_BOOTSTRAP_EMAIL = [[AK_ADMIN_EMAIL]]
+AUTHENTIK_BOOTSTRAP_PASSWORD = [[AK_ADMIN_PASS]]
+AUTHENTIK_BOOTSTRAP_TOKEN = [[AK_BOOTSTRAP_TOKEN]]
+"""
+
+# --- 3. Testdienst hinter Forward-Auth --------------------------------------
+[[stack]]
+name = "whoami"
+description = "Testdienst: beweist Routing + SSO-Gate"
+tags = ["edge", "test"]
+deploy = true
+after = ["authentik"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/whoami"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+"""
