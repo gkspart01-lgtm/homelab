@@ -227,47 +227,56 @@ sudo bash bootstrap-docker.sh
 #    adds debian user to docker group.
 ```
 
-### 4. Deploy the Edge stacks (Traefik + authentik + whoami + frp)
+### 4. One entry point: Komodo deploys everything else
 
 ```bash
-# On docker01 (or from operator workstation via SSH):
-docker network create edge
-
-cd /opt/homelab/stacks/edge
-cp .env.example .env            # set DOMAIN=hl0.mehrwert.icu
-docker compose up -d
-
-cd ../authentik
-cp .env.example .env
-#    Generate secrets:
-#    AUTHENTIK_POSTGRESQL_PASSWORD=$(openssl rand -hex 24)
-#    AUTHENTIK_SECRET_KEY=$(openssl rand -base64 48 | tr -d "\n")
-#    AUTHENTIK_BOOTSTRAP_TOKEN=$(openssl rand -hex 32)
-#    AUTHENTIK_BOOTSTRAP_PASSWORD=$(openssl rand -base64 24)   # change after first login
-#    Paste into .env
-docker compose up -d
-#    Wait ~60s for authentik health endpoint and blueprints (11 default flows).
-
-cd ../whoami
-cp .env.example .env            # DOMAIN=hl0.mehrwert.icu
-docker compose up -d
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone https://github.com/gkspart01-lgtm/homelab /opt/homelab
+sudo bash /opt/homelab/scripts/bootstrap-komodo.sh
 ```
 
-### 5. Authentik SSO bootstrap (one-time API calls)
+That single script does, in order:
+
+1. Docker Engine + Compose plugin (`scripts/bootstrap-docker.sh`)
+2. `stacks/komodo` up — Core 2.3.4 + Periphery + MongoDB, UI at
+   `https://komodo.<domain>` (own login, deliberately **not** behind authentik: it
+   deploys authentik, so an IdP outage must not lock you out of the fix)
+3. Secret variables in Komodo (`DOMAIN`, `AK_DB_PASS`, `AK_SECRET_KEY`,
+   `AK_ADMIN_EMAIL`, `AK_ADMIN_PASS`, `AK_BOOTSTRAP_TOKEN`) — generated once, stored in
+   `/root/.komodo-homelab-secrets.env`
+4. Resource Sync `homelab` from `komodo/homelab.toml` → creates server `docker01` and
+   deploys the stacks **`edge` → `authentik` → `whoami`** (`after` = ordering,
+   `environment` = the per-stack `.env`, secrets interpolated as `[[VAR]]`)
+5. authentik forward-auth wiring (`scripts/authentik-bootstrap.py`: proxy provider,
+   application, embedded outpost, `authentik_host`) + server restart
+
+From then on the stacks are Komodo-managed: change a file → commit → sync (UI button,
+`km x sync homelab`, or the git webhook); or redeploy a single stack
+(`km deploy stack edge` / UI). `komodo/homelab.toml` is the single source of truth for
+which stacks exist on which server.
+
+Check:
 
 ```bash
-# On operator workstation: SSH tunnel to authentik's localhost API port
-ssh -f -N -L 19000:127.0.0.1:9000 debian@192.168.181.100
+TOKEN=$(grep '^KOMODO_INIT_ADMIN_PASSWORD=' stacks/komodo/.env | cut -d= -f2-)
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d "{\"type\":\"LoginLocalUser\",\"params\":{\"username\":\"admin\",\"password\":\"$TOKEN\"}}" \
+  http://127.0.0.1:9120/auth/login
+```
 
-# Run bootstrap (creates Proxy Provider, Application, wires Embedded Outpost,
-# patches outpost config with authentik_host):
-AUTHENTIK_URL=http://127.0.0.1:19000 \
-AUTHENTIK_TOKEN=$(grep AUTHENTIK_BOOTSTRAP_TOKEN stacks/authentik/.env | cut -d= -f2) \
-DOMAIN=hl0.mehrwert.icu APP_NAME=whoami \
-python3 scripts/authentik-bootstrap.py
+`frp` is intentionally **not** in the sync yet: it needs the VPS address and token
+(`stacks/frp/frpc.toml`), which arrive with the public edge.
 
-# Close tunnel when done
-pkill -f "19000:127.0.0.1:9000"
+### 5. Alternative: stacks without Komodo
+
+The compose files work standalone if Komodo is not wanted:
+
+```bash
+docker network create edge
+for s in edge authentik whoami; do ( cd stacks/$s && cp .env.example .env && \\
+  docker compose up -d ); done
+# authentik secrets: openssl rand ..., see stacks/*/.env.example
+# then: python3 scripts/authentik-bootstrap.py (API-Token aus stacks/authentik/.env)
 ```
 
 ### 6. Verify the chain (no public DNS needed)

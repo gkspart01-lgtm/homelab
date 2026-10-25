@@ -43,13 +43,11 @@ services:
       - traefik.http.routers.komodo.rule=Host(`komodo.${DOMAIN}`)
       - traefik.http.routers.komodo.entrypoints=websecure
       - traefik.http.routers.komodo.tls=true
-      - traefik.http.routers.komodo.middlewares=authentik@file,security-headers@file
+      # Bewusst NICHT hinter authentik: Komodo deployt authentik selbst.
+      # Waere die UI vom IdP abhaengig, liesse sich ein Ausfall nicht mehr beheben.
+      # Komodo hat eigene Anmeldung (admin + Passwort aus stacks/komodo/.env).
+      - traefik.http.routers.komodo.middlewares=security-headers@file
       - traefik.http.services.komodo.loadbalancer.server.port=9120
-      - traefik.http.routers.komodo-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
-      - traefik.http.routers.komodo-outpost.entrypoints=websecure
-      - traefik.http.routers.komodo-outpost.tls=true
-      - traefik.http.routers.komodo-outpost.priority=100
-      - traefik.http.routers.komodo-outpost.service=authentik@file
 
   periphery:
     image: ghcr.io/moghtech/komodo-periphery:2
