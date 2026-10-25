@@ -164,7 +164,7 @@ def run_sync():
             info = s.get("info") or {}
             states[s["name"]] = (info.get("state") or info.get("status") or "?")
         print("  Stacks:", ", ".join(f"{k}={v}" for k, v in sorted(states.items())))
-        if states and all(v == "Running" for v in states.values()):
+        if states and all(str(v).lower() == "running" for v in states.values()):
             print("Alle Stacks laufen.")
             return
         time.sleep(15)
