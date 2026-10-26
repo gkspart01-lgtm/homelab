@@ -2,7 +2,7 @@
 # (Home hängt hinter CGNAT, deshalb kein Port-Forwarding möglich).
 # Nach frpc.toml kopieren und Server/Token eintragen.
 serverAddr = "<VPS-IP-oder-DNS>"
-serverPort = 7000
+serverPort = 7001
 auth.method = "token"
 auth.token = "<FRP_TOKEN>"
 

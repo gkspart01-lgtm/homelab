@@ -108,14 +108,13 @@ path = "frpc.toml"
 content = """
 user = "[[FRP_USER]]"
 serverAddr = "[[FRP_SERVER_ADDR]]"
-serverPort = 7000
-auth.method = "token"
-auth.token = "[[FRP_TOKEN]]"
+serverPort = 7001
+metadatas.token = "[[FRP_TOKEN]]"
 
 [[proxies]]
 name = "hl-web"
-type = "http"
+type = "tcp"
 localIP = "192.168.181.100"
-localPort = 80
-customDomains = ["[[DOMAIN]]", "auth.[[DOMAIN]]", "whoami.[[DOMAIN]]", "komodo.[[DOMAIN]]"]
+localPort = 8080
+remotePort = 8082
 """
