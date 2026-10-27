@@ -115,6 +115,6 @@ metadatas.token = "[[FRP_TOKEN]]"
 name = "hl-web"
 type = "tcp"
 localIP = "192.168.181.100"
-localPort = 8080
+localPort = 8081
 remotePort = 8082
 """

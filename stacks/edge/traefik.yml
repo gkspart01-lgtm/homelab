@@ -19,8 +19,9 @@ entryPoints:
     address: ":443"
   # Nur für den frp-Tunnel: der VPS terminiert TLS und reicht Klartext weiter.
   # Bewusst ohne Redirect, sonst entsteht eine Umleitungsschleife.
+  # Nicht 8080: dort lauscht der Traefik-eigene Dashboard-Entrypoint (api.insecure).
   webplain:
-    address: ":8080"
+    address: ":8081"
 
 api:
   dashboard: true
