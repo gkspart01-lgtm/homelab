@@ -51,7 +51,8 @@ services:
       # Tunnel-Variante (Klartext vom VPS, kein TLS/Redirect)
       - traefik.http.routers.komodo-plain.rule=Host(`komodo.${DOMAIN}`)
       - traefik.http.routers.komodo-plain.entrypoints=webplain
-      - traefik.http.routers.komodo-plain.middlewares=tunnel-headers@file,authentik@file
+      # authentik/Komodo sind selbst der Login - kein Forward-Auth davor
+      - traefik.http.routers.komodo-plain.middlewares=tunnel-headers@file
       - traefik.http.routers.komodo-plain.service=komodo
       - traefik.http.routers.komodo-plain-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
       - traefik.http.routers.komodo-plain-outpost.entrypoints=webplain
