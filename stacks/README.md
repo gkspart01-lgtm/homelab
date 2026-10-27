@@ -40,45 +40,51 @@ Zwei bewusste Entscheidungen:
   IdP-Ausfall darf den Zugang zum Reparaturwerkzeug nicht blockieren. Komodo hat eine
   eigene Anmeldung (`admin` + Passwort aus `stacks/komodo/.env`), die UI ist nur per TLS
   erreichbar.
-- **`frp` ist deklariert, aber `deploy = false`.** Der Stack steht in `komodo/homelab.toml`,
-  `bootstrap-komodo.py` überspringt ihn. Aktivieren, sobald die VPS-Seite geklärt ist:
+- **`frp` ist deklariert, aber `deploy = false`.** Aktivieren, sobald die VPS-Seite passt:
 
   ```bash
-  FRP_SERVER_ADDR=<vps> FRP_USER=hl FRP_TOKEN=<server-token> \
-    python3 scripts/komodo-bootstrap.py     # legt die Variablen an
-  # dann in komodo/homelab.toml bei [[stack]] name="frp" -> deploy = true, Sync ausführen
+  FRP_SERVER_ADDR=rws8.mehrwert.icu FRP_USER=hl FRP_TOKEN=<token> \
+    SECRETS_FILE=stacks/komodo/secrets.env python3 scripts/komodo-bootstrap.py
+  # dann in komodo/homelab.toml bei [[stack]] name="frp" -> deploy = true, Sync
   ```
 
-  Stand der VPS-Prüfung (212.227.139.254): `:7000` nimmt Verbindungen an, `:80` antwortet
-  als frp-vhost (`404 page not found` ohne passenden Proxy), `:443` hat ein
-  Let's-Encrypt-Zertifikat für `hl.mehrwert.icu` und liefert `502` (TLS-Terminator ohne
-  erreichbares Backend). Ein Login mit dem User-Token aus `frps-tokens.toml`
-  (`user = "hl"`, `ports = [8082]`, `domains = ["hl.mehrwert.icu"]`) wird mit
-  *"token in login doesn't match token from configuration"* abgelehnt — der Server
-  verlangt offenbar seinen globalen `auth.token`; die Port-/Domain-Zuordnung
-  (`ports = [8082]`) muss ebenfalls geklärt werden.
+### frp auf dem VPS: frps-panel und die Port-Falle
 
-## Reihenfolge (manuell, ohne Komodo)
+Der VPS fährt `frps` mit dem Plugin **frps-panel** (yhl452493373/frps-panel, Port 7200),
+das Nutzer per `frps-tokens.toml` verwaltet. Verifiziertes Verhalten (lokal nachgebaut,
+gleiche Version, gleiche Fehlermeldungen):
 
-```bash
-docker network create edge            # einmalig, von allen Stacks geteilt
-cd edge      && cp .env.example .env  # DOMAIN setzen
-             docker compose up -d
-cd authentik && cp .env.example .env  # Secrets: openssl rand -base64 42
-             docker compose up -d
-cd whoami    && cp .env.example .env
-             docker compose up -d
+- Der Client meldet sich mit `user` + **`metadatas.token`** an — `auth.token` wird
+  abgelehnt („token in login doesn't match token from configuration"), ein fehlender
+  Token mit „user or meta token can not be empty".
+- **`ports` muss Strings enthalten.** Das Panel vergleicht die Einträge als `interface{}`
+  gegen den `int`-Remote-Port; TOML-Integer werden als `int64` dekodiert und sind nie
+  gleich → `ports = [8082]` matcht nie („user [hl] port [8082] is not allowed"),
+  `ports = ["8082"]` funktioniert. Bereiche gehen als `"10000-10200"`.
+- Danach: `frpc` loggt `start proxy success`, frps: `tcp proxy listen port [8082]`.
+
+Client-Konfiguration, die so verifiziert wurde:
+
+```toml
+serverAddr = "rws8.mehrwert.icu"   # VPS
+serverPort = 7001                  # frps-p
+user = "hl"
+metadatas.token = "<token aus frps-tokens.toml>"
+
+[[proxies]]
+name = "hl.npm-http"
+type = "tcp"
+localIP = "192.168.181.100"
+localPort = 8081                   # Traefik-webplain, NICHT 80 (dort Redirect)
+remotePort = 8082                  # Port, auf den der VPS-Traefik zeigt
 ```
 
-Danach die SSO-Erstkonfiguration (Provider + Application + Embedded Outpost):
-
-```bash
-# authentik-API über den localhost-Port (SSH-Tunnel vom Admin-Rechner aus):
-ssh -f -N -L 19000:127.0.0.1:9000 debian@192.168.181.100
-AUTHENTIK_URL=http://127.0.0.1:19000 \
-AUTHENTIK_TOKEN=$(grep AUTHENTIK_BOOTSTRAP_TOKEN authentik/.env | cut -d= -f2) \
-DOMAIN=hl.mehrwert.icu APP_NAME=whoami python3 scripts/authentik-bootstrap.py
-```
+Warum `localPort 8081`: Der VPS-Traefik terminiert TLS und schickt **Klartext** weiter.
+Traefik hat dafür den Entrypoint `webplain :8081` (ohne HTTPS-Redirect) plus
+`*-plain`-Router und die Middleware `tunnel-headers@file` (setzt
+`X-Forwarded-Proto: https`), sonst entsteht eine Redirect-Schleife bzw. authentik baut
+falsche URLs. Verifiziert durch den lokalen Tunnel: `whoami` → 302 zum Login,
+`auth/-/health/live/` → 200, `komodo` → 200.
 
 ## Wie die Kette funktioniert
 
