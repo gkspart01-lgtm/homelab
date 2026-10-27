@@ -72,6 +72,15 @@ services:
       - traefik.http.routers.authentik.tls=true
       - traefik.http.routers.authentik.middlewares=security-headers@file
       - traefik.http.services.authentik.loadbalancer.server.port=9000
+      # Tunnel-Variante (Klartext vom VPS, kein TLS/Redirect)
+      - traefik.http.routers.authentik-plain.rule=Host(`auth.${DOMAIN}`)
+      - traefik.http.routers.authentik-plain.entrypoints=webplain
+      - traefik.http.routers.authentik-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.authentik-plain.service=authentik
+      - traefik.http.routers.authentik-plain-outpost.rule=Host(`auth.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.authentik-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.authentik-plain-outpost.priority=100
+      - traefik.http.routers.authentik-plain-outpost.service=authentik@file
 
   worker:
     image: ghcr.io/goauthentik/server:2026.8.5

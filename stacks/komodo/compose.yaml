@@ -48,6 +48,15 @@ services:
       # Komodo hat eigene Anmeldung (admin + Passwort aus stacks/komodo/.env).
       - traefik.http.routers.komodo.middlewares=security-headers@file
       - traefik.http.services.komodo.loadbalancer.server.port=9120
+      # Tunnel-Variante (Klartext vom VPS, kein TLS/Redirect)
+      - traefik.http.routers.komodo-plain.rule=Host(`komodo.${DOMAIN}`)
+      - traefik.http.routers.komodo-plain.entrypoints=webplain
+      - traefik.http.routers.komodo-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.komodo-plain.service=komodo
+      - traefik.http.routers.komodo-plain-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.komodo-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.komodo-plain-outpost.priority=100
+      - traefik.http.routers.komodo-plain-outpost.service=authentik@file
 
   periphery:
     image: ghcr.io/moghtech/komodo-periphery:2

@@ -14,6 +14,15 @@ services:
       - traefik.http.routers.whoami.tls=true
       - traefik.http.routers.whoami.middlewares=authentik@file,security-headers@file
       - traefik.http.services.whoami.loadbalancer.server.port=80
+      # Tunnel-Variante (Klartext vom VPS, kein TLS/Redirect)
+      - traefik.http.routers.whoami-plain.rule=Host(`whoami.${DOMAIN}`)
+      - traefik.http.routers.whoami-plain.entrypoints=webplain
+      - traefik.http.routers.whoami-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.whoami-plain.service=whoami
+      - traefik.http.routers.whoami-plain-outpost.rule=Host(`whoami.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.whoami-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.whoami-plain-outpost.priority=100
+      - traefik.http.routers.whoami-plain-outpost.service=authentik@file
       # Forward-Auth-Callback: /outpost.goauthentik.io/* muss auf der App-Domain
       # beim authentik-Outpost landen, nicht bei whoami (siehe authentik-Doku).
       - traefik.http.routers.whoami-outpost.rule=Host(`whoami.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
