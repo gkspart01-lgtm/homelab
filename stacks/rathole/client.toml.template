@@ -1,0 +1,16 @@
+# rathole-Client — wird von Komodo aus komodo/homelab.toml erzeugt (config_files),
+# damit Public Key und Service-Token nicht im Repo stehen.
+[client]
+remote_addr = "[[RATHOLE_REMOTE]]"
+retry_interval = 1
+
+[client.transport]
+type = "noise"
+
+[client.transport.noise]
+remote_public_key = "[[RATHOLE_PUBKEY]]"
+
+[client.services.hl]
+token = "[[RATHOLE_TOKEN]]"
+# Traefiks Klartext-Entrypoint (VPS terminiert TLS)
+local_addr = "127.0.0.1:8081"

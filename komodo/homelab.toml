@@ -118,3 +118,57 @@ localIP = "192.168.181.100"
 localPort = 8081
 remotePort = 8082
 """
+
+# --- 3b. Statische Testseite auf der Apex-Domain ----------------------------
+[[stack]]
+name = "testpage"
+description = "nginx-Testseite auf hl.<DOMAIN> (Beweis fuer den Tunnel)"
+tags = ["edge", "test"]
+deploy = true
+after = ["edge"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/testpage"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+"""
+
+# --- 3c. rathole-Tunnel zum VPS --------------------------------------------
+# Client-Config wird erzeugt (Public Key + Service-Token als Komodo-Variablen).
+[[stack]]
+name = "rathole"
+description = "rathole-Client: TCP-Tunnel zum VPS (dort terminiert Traefik TLS)"
+tags = ["edge"]
+deploy = true
+after = ["testpage"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/rathole"
+file_paths = ["compose.yaml"]
+
+[[stack.config.config_files]]
+path = "client.toml"
+content = """
+[client]
+remote_addr = "[[RATHOLE_REMOTE]]"
+retry_interval = 1
+
+[client.transport]
+type = "noise"
+
+[client.transport.noise]
+remote_public_key = "[[RATHOLE_PUBKEY]]"
+
+[client.services.hl]
+token = "[[RATHOLE_TOKEN]]"
+local_addr = "127.0.0.1:8081"
+"""

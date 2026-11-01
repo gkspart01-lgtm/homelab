@@ -255,6 +255,14 @@ def main():
         if os.environ.get("FRP_TOKEN"):
             print("  FRP_TOKEN:", set_variable("FRP_TOKEN", os.environ["FRP_TOKEN"], True))
 
+    # rathole nur anlegen, wenn die VPS-Daten bekannt sind
+    if os.environ.get("RATHOLE_REMOTE"):
+        print("rathole-Variablen:")
+        print("  RATHOLE_REMOTE:", set_variable("RATHOLE_REMOTE", os.environ["RATHOLE_REMOTE"], False))
+        for name in ("RATHOLE_PUBKEY", "RATHOLE_TOKEN"):
+            if os.environ.get(name):
+                print(f"  {name}:", set_variable(name, os.environ[name], name == "RATHOLE_TOKEN"))
+
     ensure_sync()
     run_sync()
     if os.environ.get("SYNC_STACKS", "1") == "1":

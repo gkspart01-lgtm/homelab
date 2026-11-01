@@ -1,0 +1,17 @@
+# rathole-Client: baut die Verbindung zum VPS auf und reicht Klartext an
+# Traefiks webplain-Entrypoint (127.0.0.1:8081) weiter.
+# Der VPS haelt den TLS-Endpunkt (Traefik + Let's Encrypt), rathole transportiert nur TCP.
+services:
+  rathole:
+    image: rapiz1/rathole:v0.5.0
+    container_name: rathole
+    restart: unless-stopped
+    # Image laeuft als uid 1000; als root gestartet bleibt die 600er-Config lesbar
+    user: "0:0"
+    command: ["--client", "/app/client.toml"]
+    environment:
+      - "RUST_LOG=info"
+    volumes:
+      - ./client.toml:/app/client.toml:ro
+    # host-Netz, damit 127.0.0.1:8081 (Traefik-webplain) erreichbar ist
+    network_mode: host

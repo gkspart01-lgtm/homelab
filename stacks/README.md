@@ -8,7 +8,9 @@ einer lokalen `.env` (gitignored), die Konfiguration selbst ist im Git.
 | `edge/` | Traefik v3: HTTP→HTTPS, TLS, Routing über Docker-Labels, Dashboard | `:80`, `:443` | – |
 | `authentik/` | Identity Provider (SSO, Proxy-Provider/Forward-Auth) + PostgreSQL + Redis | `https://auth.<DOMAIN>`; `127.0.0.1:9000` nur für Bootstrap | `edge` |
 | `whoami/` | Testdienst, beweist Routing + SSO-Gate | `https://whoami.<DOMAIN>` | `edge`, `authentik` |
-| `frp/` | Client-Seite des Tunnels zum öffentlichen VPS (frps dort) | ausgehend zu `<VPS>:7000` | `edge` |
+| `frp/` | Client-Seite des Tunnels zum öffentlichen VPS (frps-panel dort) — **nicht aktiv** | ausgehend zu `<VPS>:7001` | `edge` |
+| `rathole/` | **aktiver** Tunnel zum VPS (Noise-Control-Channel, TCP) | ausgehend zu `<VPS>:8443` | `edge` |
+| `testpage/` | statische Testseite auf der Apex-Domain (Tunnel-Beweis) | `https://hl.<DOMAIN>` | `edge` |
 | `komodo/` | Deployment-Plattform: Core + Periphery + MongoDB. Deployt `edge`, `authentik`, `whoami` aus `komodo/homelab.toml` | `https://komodo.<DOMAIN>` (eigener Login) | – (wird per `bootstrap-komodo.sh` gestartet) |
 
 ## Komodo als Einstiegspunkt (empfohlen)
@@ -144,3 +146,33 @@ ist in `stacks/edge/traefik.yml` vorbereitet und wird aktiviert, sobald
 - **Jede geschützte Domain braucht einen eigenen authentik-Provider** (hier `whoami`).
   Eine Domain ohne Provider bekommt vom Outpost keine Freigabe — beim Test der
   Komodo-UI sah das wie ein kaputter Reverse-Proxy aus (Antwort war die authentik-Seite).
+
+## rathole statt frp (aktueller Weg)
+
+Der VPS hält TLS (Traefik + Let's Encrypt) und einen rathole-Server; der Client im LAN
+baut den Control-Channel per Noise auf und reicht **Klartext** an Traefiks
+`webplain :8081` weiter. Damit ist frp nicht mehr nötig.
+
+```toml
+# client.toml (wird von Komodo aus [[RATHOLE_*]] erzeugt)
+[client]
+remote_addr = "hl.mehrwert.icu:8443"
+[client.transport]
+type = "noise"
+[client.transport.noise]
+remote_public_key = "<Public Key des VPS>"
+[client.services.hl]
+token = "<Service-Token>"
+local_addr = "127.0.0.1:8081"
+```
+
+Variablen setzen und Sync laufen lassen:
+
+```bash
+RATHOLE_REMOTE=hl.mehrwert.icu:8443 \
+RATHOLE_PUBKEY=<public key> RATHOLE_TOKEN=<token> \
+SECRETS_FILE=stacks/komodo/secrets.env python3 scripts/komodo-bootstrap.py
+```
+
+Das Image (`rapiz1/rathole:v0.5.0`) läuft als uid 1000 — in `stacks/rathole/compose.yaml`
+deshalb `user: "0:0"`, sonst kann es die 600er-Config nicht lesen.
