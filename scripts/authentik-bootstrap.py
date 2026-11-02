@@ -163,7 +163,12 @@ def ensure_group(name):
 def ensure_group_policy(app, group):
     """Expression-Policy: Zugriff nur fuer Mitglieder der Gruppe."""
     name = f"access-{app}-{group}"
-    expression = f'return ak_is_group_member(request.user, name="{group}")'
+    if group == "homelab-admins":
+        expression = 'return ak_is_group_member(request.user, name="homelab-admins")'
+    else:
+        # Admins duerfen alles, alle anderen nur mit ihrer Gruppe
+        expression = (f'return ak_is_group_member(request.user, name="{group}") '
+                      'or ak_is_group_member(request.user, name="homelab-admins")')
     st, policies = api("GET", "/policies/expression/?page_size=200")
     existing = next((p for p in (policies or {}).get("results", []) if p["name"] == name), None)
     if existing:
