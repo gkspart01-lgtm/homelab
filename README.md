@@ -313,6 +313,32 @@ Open `https://whoami.hl.mehrwert.icu/` → login at `https://auth.hl.mehrwert.ic
 
 ---
 
+## Public access (verified 2026-11-02)
+
+The LAN is reachable from the internet through **one rathole tunnel** (Noise control
+channel against the IONOS VPS, which terminates TLS with Let's Encrypt):
+
+| URL | Result | Behind it |
+|---|---|---|
+| `https://hl.mehrwert.icu/` | 200 (test page) | `stacks/testpage` (nginx) via Traefik `webplain :8081` |
+| `https://whoami.hl.mehrwert.icu/` | 302 → authentik login | `stacks/whoami` with forward-auth |
+| `https://auth.hl.mehrwert.icu/` | 200 (`/-/health/live/`) | authentik |
+| `https://komodo.hl.mehrwert.icu/` | 200 | Komodo UI (own login) |
+
+Chain: browser → VPS Traefik (`:443`, LE wildcard `*.hl.mehrwert.icu`) → rathole server
+`:8082` (internal) → rathole client on `docker01` → Traefik `webplain :8081` → container.
+
+Why plain HTTP on `:8081`: the VPS terminates TLS, so Traefik must not redirect to HTTPS
+again; `tunnel-headers@file` sets `X-Forwarded-Proto: https` for authentik. `:8080` is
+unusable — that is Traefik's own dashboard entrypoint.
+
+Komodo manages `testpage` and `rathole` like the other stacks (`komodo/homelab.toml`);
+the client config (`client.toml`) is rendered from Komodo variables by
+`scripts/komodo-bootstrap.py` (`*.template` files in the stack directory).
+The frp stack stays parked (`deploy = false`) — rathole replaced it.
+
+---
+
 ## What is NOT yet done (open items)
 
 1. **Public VPS**: frps install on IONOS VPS, tunnel with real ports 80/443.
