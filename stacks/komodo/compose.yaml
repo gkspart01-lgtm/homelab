@@ -43,16 +43,20 @@ services:
       - traefik.http.routers.komodo.rule=Host(`komodo.${DOMAIN}`)
       - traefik.http.routers.komodo.entrypoints=websecure
       - traefik.http.routers.komodo.tls=true
-      # Bewusst NICHT hinter authentik: Komodo deployt authentik selbst.
-      # Waere die UI vom IdP abhaengig, liesse sich ein Ausfall nicht mehr beheben.
-      # Komodo hat eigene Anmeldung (admin + Passwort aus stacks/komodo/.env).
-      - traefik.http.routers.komodo.middlewares=security-headers@file
+      # Auf Wunsch hinter authentik (Falko, 2026-11-02). Trade-off: faellt authentik
+      # aus, ist die Komodo-UI nur noch per SSH-Tunnel (127.0.0.1:9120) erreichbar.
+      - traefik.http.routers.komodo.middlewares=authentik@file,security-headers@file
       - traefik.http.services.komodo.loadbalancer.server.port=9120
+      # Callback des Forward-Auth-Flows
+      - traefik.http.routers.komodo-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.komodo-outpost.entrypoints=websecure
+      - traefik.http.routers.komodo-outpost.tls=true
+      - traefik.http.routers.komodo-outpost.priority=100
+      - traefik.http.routers.komodo-outpost.service=authentik@file
       # Tunnel-Variante (Klartext vom VPS, kein TLS/Redirect)
       - traefik.http.routers.komodo-plain.rule=Host(`komodo.${DOMAIN}`)
       - traefik.http.routers.komodo-plain.entrypoints=webplain
-      # authentik/Komodo sind selbst der Login - kein Forward-Auth davor
-      - traefik.http.routers.komodo-plain.middlewares=tunnel-headers@file
+      - traefik.http.routers.komodo-plain.middlewares=tunnel-headers@file,authentik@file
       - traefik.http.routers.komodo-plain.service=komodo
       - traefik.http.routers.komodo-plain-outpost.rule=Host(`komodo.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
       - traefik.http.routers.komodo-plain-outpost.entrypoints=webplain

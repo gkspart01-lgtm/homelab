@@ -1,0 +1,39 @@
+- Betrieb:
+    - Komodo:
+        href: https://komodo.hl.mehrwert.icu
+        description: Deployment-Plattform (Stacks, Server, Syncs)
+        icon: komodo.png
+    - authentik:
+        href: https://auth.hl.mehrwert.icu
+        description: Identity Provider / SSO
+        icon: authentik.png
+- Dienste:
+    - Öffentliche Startseite:
+        href: https://hl.mehrwert.icu
+        description: nach außen sichtbare Übersicht
+        icon: homepage.png
+    - whoami (Test):
+        href: https://whoami.hl.mehrwert.icu
+        description: Header-Testdienst hinter Forward-Auth
+        icon: traefik.png
+    - Homepage (diese Seite):
+        href: https://home.hl.mehrwert.icu
+        description: interne Übersicht hinter SSO
+        icon: homepage.png
+- Infrastruktur (LAN):
+    - Proxmox pve2:
+        href: https://192.168.181.99:8006
+        description: Virtualisierung (nested PVE)
+        icon: proxmox.png
+    - docker01:
+        href: https://192.168.181.100
+        description: Docker-Host (VM 200)
+        icon: docker.png
+    - Home Assistant:
+        href: http://192.168.178.71:8123
+        description: Smart Home
+        icon: home-assistant.png
+    - PiAmWR:
+        href: http://192.168.180.44
+        description: Growatt-Leistungsbegrenzer
+        icon: raspberry-pi.png

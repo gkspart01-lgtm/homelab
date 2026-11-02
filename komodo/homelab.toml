@@ -104,20 +104,20 @@ run_directory = "stacks/frp"
 file_paths = ["compose.yaml"]
 
 
-# --- 3b. Statische Testseite auf der Apex-Domain ----------------------------
+# --- 3b. Dienst-Übersicht: zwei Homepage-Instanzen ------------------------
 [[stack]]
-name = "testpage"
-description = "nginx-Testseite auf hl.<DOMAIN> (Beweis fuer den Tunnel)"
-tags = ["edge", "test"]
+name = "homepage"
+description = "gethomepage: öffentlich auf der Apex, privat hinter authentik"
+tags = ["edge", "prod"]
 deploy = true
-after = ["edge"]
+after = ["edge", "authentik"]
 
 [stack.config]
 server = "docker01"
 git_provider = "github.com"
 repo = "gkspart01-lgtm/homelab"
 branch = "main"
-run_directory = "stacks/testpage"
+run_directory = "stacks/homepage"
 file_paths = ["compose.yaml"]
 environment = """
 DOMAIN = [[DOMAIN]]

@@ -1,0 +1,15 @@
+# Nur bewusst öffentliche Ziele - keine internen Namen, IPs oder Admin-Links.
+- Öffentlich:
+    - Startseite:
+        href: https://hl.mehrwert.icu
+        description: Diese Übersicht
+        icon: homepage.png
+    - Status:
+        href: https://hl.mehrwert.icu
+        description: Tunnel und Erreichbarkeit
+        icon: uptime-kuma.png
+- Anmeldung:
+    - Single Sign-on:
+        href: https://auth.hl.mehrwert.icu
+        description: authentik - Login für geschützte Dienste
+        icon: authentik.png

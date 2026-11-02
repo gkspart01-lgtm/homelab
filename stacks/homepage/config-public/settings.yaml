@@ -1,0 +1,14 @@
+title: Homelab
+language: de
+theme: dark
+color: slate
+headerStyle: boxed
+statusStyle: dot
+hideVersion: true
+layout:
+  Öffentlich:
+    style: row
+    columns: 2
+  Anmeldung:
+    style: row
+    columns: 2

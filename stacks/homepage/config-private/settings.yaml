@@ -1,0 +1,17 @@
+title: Homelab · intern
+language: de
+theme: dark
+color: zinc
+headerStyle: boxed
+statusStyle: dot
+hideVersion: true
+layout:
+  Betrieb:
+    style: row
+    columns: 2
+  Dienste:
+    style: row
+    columns: 3
+  Infrastruktur (LAN):
+    style: row
+    columns: 4

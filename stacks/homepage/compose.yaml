@@ -1,0 +1,67 @@
+# Zwei Homepage-Instanzen (gethomepage.dev):
+#   - homepage-public : Apex-Domain, ohne Login, zeigt nur bewusst oeffentliche Ziele
+#   - homepage-private: hinter authentik, zeigt die internen Dienste (LAN + Tunnel)
+services:
+  homepage-public:
+    image: ghcr.io/gethomepage/homepage:v2.7.0
+    container_name: homepage-public
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      HOMEPAGE_ALLOWED_HOSTS: "${DOMAIN}"
+    volumes:
+      - ./config-public:/app/config
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.home-public.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.home-public.entrypoints=websecure
+      - traefik.http.routers.home-public.tls=true
+      - traefik.http.routers.home-public.middlewares=security-headers@file
+      - traefik.http.services.home-public.loadbalancer.server.port=3000
+      # Klartext-Variante fuer den rathole-Tunnel
+      - traefik.http.routers.home-public-plain.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.home-public-plain.entrypoints=webplain
+      - traefik.http.routers.home-public-plain.middlewares=tunnel-headers@file
+      - traefik.http.routers.home-public-plain.service=home-public
+
+  homepage-private:
+    image: ghcr.io/gethomepage/homepage:v2.7.0
+    container_name: homepage-private
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      HOMEPAGE_ALLOWED_HOSTS: "home.${DOMAIN}"
+    volumes:
+      - ./config-private:/app/config
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.home-private.rule=Host(`home.${DOMAIN}`)
+      - traefik.http.routers.home-private.entrypoints=websecure
+      - traefik.http.routers.home-private.tls=true
+      - traefik.http.routers.home-private.middlewares=authentik@file,security-headers@file
+      - traefik.http.services.home-private.loadbalancer.server.port=3000
+      # Callback des Forward-Auth-Flows
+      - traefik.http.routers.home-private-outpost.rule=Host(`home.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.home-private-outpost.entrypoints=websecure
+      - traefik.http.routers.home-private-outpost.tls=true
+      - traefik.http.routers.home-private-outpost.priority=100
+      - traefik.http.routers.home-private-outpost.service=authentik@file
+      # Klartext-Variante fuer den rathole-Tunnel
+      - traefik.http.routers.home-private-plain.rule=Host(`home.${DOMAIN}`)
+      - traefik.http.routers.home-private-plain.entrypoints=webplain
+      - traefik.http.routers.home-private-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.home-private-plain.service=home-private
+      - traefik.http.routers.home-private-plain-outpost.rule=Host(`home.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.home-private-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.home-private-plain-outpost.priority=100
+      - traefik.http.routers.home-private-plain-outpost.service=authentik@file
+
+networks:
+  edge:
+    external: true
