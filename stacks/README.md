@@ -10,7 +10,8 @@ einer lokalen `.env` (gitignored), die Konfiguration selbst ist im Git.
 | `whoami/` | Testdienst, beweist Routing + SSO-Gate | `https://whoami.<DOMAIN>` | `edge`, `authentik` |
 | `frp/` | Client-Seite des Tunnels zum öffentlichen VPS (frps-panel dort) — **nicht aktiv** | ausgehend zu `<VPS>:7001` | `edge` |
 | `rathole/` | **aktiver** Tunnel zum VPS (Noise-Control-Channel, TCP) | ausgehend zu `<VPS>:8443` | `edge` |
-| `testpage/` | statische Testseite auf der Apex-Domain (Tunnel-Beweis) | `https://hl.<DOMAIN>` | `edge` |
+| `homepage/` | Dienst-Übersicht, zwei Instanzen: `homepage-public` (Apex, kein Login) und `homepage-private` (hinter authentik) | `https://hl.<DOMAIN>`, `https://home.<DOMAIN>` | `edge`, `authentik` |
+| `testpage/` | statische Testseite (außer Dienst, die öffentliche Homepage übernimmt die Apex-Domain) | – | – |
 | `komodo/` | Deployment-Plattform: Core + Periphery + MongoDB. Deployt `edge`, `authentik`, `whoami` aus `komodo/homelab.toml` | `https://komodo.<DOMAIN>` (eigener Login) | – (wird per `bootstrap-komodo.sh` gestartet) |
 
 ## Komodo als Einstiegspunkt (empfohlen)
@@ -176,3 +177,19 @@ SECRETS_FILE=stacks/komodo/secrets.env python3 scripts/komodo-bootstrap.py
 
 Das Image (`rapiz1/rathole:v0.5.0`) läuft als uid 1000 — in `stacks/rathole/compose.yaml`
 deshalb `user: "0:0"`, sonst kann es die 600er-Config nicht lesen.
+
+## Dienst-Übersicht (Homepage, zwei Instanzen)
+
+`stacks/homepage` läuft zweimal aus demselben Image (`ghcr.io/gethomepage/homepage:v2.7.0`)
+mit getrennten Config-Verzeichnissen:
+
+- **`config-public`** — Apex-Domain, **kein** Login. Enthält ausschließlich bewusst
+  öffentliche Ziele (Startseite, SSO-Anmeldung). Keine internen Namen, IPs, Admin-Links
+  oder Widgets.
+- **`config-private`** — `home.<DOMAIN>`, hinter `authentik@file` + Outpost-Callback.
+  Zeigt die internen Dienste und LAN-Adressen (Komodo, authentik, whoami, Proxmox,
+  Home Assistant, PiAmWR).
+
+Beide Instanzen haben einen `webplain`-Router für den Tunnel. Eine Änderung an der
+Dienstliste = YAML im Repo anpassen → Commit → Sync; Homepage liest die Dateien
+ohne Neustart neu ein.
