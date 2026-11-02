@@ -110,7 +110,8 @@ def find_flow(slug):
 
 def ensure_provider(name, host, authz, invalid):
     st, provs = api("GET", "/providers/proxy/?page_size=200")
-    existing = next((p for p in (provs or {}).get("results", []) if p["name"] == name), None)
+    items = provs.get("results", []) if isinstance(provs, dict) else []
+    existing = next((p for p in items if p["name"] == name), None)
     payload = {
         "name": name,
         "authorization_flow": authz,
@@ -129,8 +130,10 @@ def ensure_provider(name, host, authz, invalid):
 
 
 def ensure_application(name, host, provider_pk):
-    st, apps = api("GET", "/core/applications/?page_size=200")
-    existing = next((a for a in (apps or {}).get("results", []) if a["slug"] == name), None)
+    # Direktabfrage per Slug ist robuster als das Durchblaettern der Liste
+    st, existing = api("GET", f"/core/applications/{name}/")
+    if st != 200:
+        existing = None
     payload = {
         "name": name,
         "slug": name,
@@ -144,14 +147,19 @@ def ensure_application(name, host, provider_pk):
         return f"Application {name}: aktualisiert ({st})"
     st, res = api("POST", "/core/applications/", payload)
     if st not in (200, 201):
-        sys.exit(f"Application {name} anlegen fehlgeschlagen: {st} {res}")
+        # Race/existiert schon -> als Update nachziehen
+        st2, _ = api("PATCH", f"/core/applications/{name}/", payload)
+        if st2 != 200:
+            sys.exit(f"Application {name} anlegen fehlgeschlagen: {st} {res} / {st2}")
+        return f"Application {name}: nachgezogen ({st2})"
     return f"Application {name}: angelegt"
 
 
 
 def ensure_group(name):
     st, groups = api("GET", "/core/groups/?page_size=200")
-    existing = next((g for g in (groups or {}).get("results", []) if g["name"] == name), None)
+    items = groups.get("results", []) if isinstance(groups, dict) else []
+    existing = next((g for g in items if g["name"] == name), None)
     if existing:
         return existing["pk"]
     st, res = api("POST", "/core/groups/", {"name": name})
@@ -170,7 +178,8 @@ def ensure_group_policy(app, group):
         expression = (f'return ak_is_group_member(request.user, name="{group}") '
                       'or ak_is_group_member(request.user, name="homelab-admins")')
     st, policies = api("GET", "/policies/expression/?page_size=200")
-    existing = next((p for p in (policies or {}).get("results", []) if p["name"] == name), None)
+    items = policies.get("results", []) if isinstance(policies, dict) else []
+    existing = next((p for p in items if p["name"] == name), None)
     if existing:
         st, res = api("PATCH", f"/policies/expression/{existing['pk']}/",
                       {"expression": expression, "execution_logging": False})
