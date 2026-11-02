@@ -241,6 +241,10 @@ def materialize_templates(name, run_directory):
         return
     for tpl in sorted(src_dir.glob("*.template")):
         target = dst_dir / tpl.name.removesuffix(".template")
+        # Docker legt beim ersten Mount ein Verzeichnis an, wenn die Datei fehlt
+        if target.is_dir():
+            import shutil
+            shutil.rmtree(target)
         content = tpl.read_text()
         for k, v in RENDER_VALUES.items():
             content = content.replace(f"[[{k}]]", str(v))
