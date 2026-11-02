@@ -324,6 +324,7 @@ channel against the IONOS VPS, which terminates TLS with Let's Encrypt):
 | `https://home.hl.mehrwert.icu/` | 302 → authentik login | `homepage-private` — internal service list behind SSO |
 | `https://komodo.hl.mehrwert.icu/` | 302 → authentik login | Komodo UI behind SSO (fallback: `ssh -L 9120:127.0.0.1:9120`) |
 | `https://whoami.hl.mehrwert.icu/` | 302 → authentik login | `whoami` with forward-auth |
+| `https://notes.hl.mehrwert.icu/` | 302 → authentik login | SilverBullet notes behind SSO |
 | `https://auth.hl.mehrwert.icu/` | 200 (`/-/health/live/`) | authentik |
 
 Chain: browser → VPS Traefik (`:443`, LE wildcard `*.hl.mehrwert.icu`) → rathole server
@@ -339,8 +340,26 @@ the client config (`client.toml`) is rendered from Komodo variables by
 The frp stack stays parked (`deploy = false`) — rathole replaced it. The former
 `testpage` stack is retired: the apex now serves the public Homepage.
 
+### Home Assistant self-healing
+
+HA is a VM (OpenTofu), not a container, so Komodo cannot manage it. Two mechanisms keep
+it available:
+
+- `onboot=1` in `tofu/haos.tf` — the VM starts with `pve2`.
+- `hawatch` (Compose stack) polls `http://192.168.178.74:8123` every 60 s. After three
+  failed checks (300 s grace at container start) it issues a reboot through the Proxmox
+  API, then waits an hour before it would try again — no reboot loop. Token:
+  `tofu@pve!hawatch`, role `Hawatch` (`VM.Audit`, `VM.PowerMgmt`), ACL on `/vms/201` only.
+
+Observed failure mode (2026-11-02): HA answered on port **80** instead of 8123, so the
+watchdog saw it as dead and rebooted the VM — the reboot did not help because the port
+came from the config, not from the process. The web port lives in
+`/config/.storage/http` (`"server_port"`); `ha core options --port=8123` is only
+transient and reverts on the next core restart. Set the value in `.storage/http` with
+the core stopped (`ha core stop` → edit → `ha core start`).
+
 `scripts/authentik-bootstrap.py` protects several hosts in one run (`APPS="name:host,..."`,
-default `whoami`, `komodo`, `home`); each app gets its own forward-auth provider and
+default `whoami`, `komodo`, `home`, `notes`); each app gets its own forward-auth provider and
 application in authentik.
 
 ---
@@ -352,6 +371,7 @@ application in authentik.
 3. **Let's Encrypt DNS-01**: put `IONOS_API_KEY`, `IONOS_API_SECRET`, `ACME_EMAIL`
    into `stacks/edge/.env`; Traefik will switch from self-signed to valid certs.
 4. **Timezone on HA**: still UTC → set to Europe/Berlin in HA UI (Settings → System → General).
+   HA Core is reachable again on `:8123` (see *Home Assistant self-healing*).
 5. **Restore test** (Gate before further apps): `tofu destroy -target=...` + re-apply proves State → running guest.
 ## Edge stack on `docker01` (2026-10-25)
 
@@ -363,6 +383,8 @@ gated by authentik (details: `stacks/README.md`):
 | `edge` | Traefik v3.7 — HTTP→HTTPS, TLS, Docker-label routing, dashboard behind SSO | `:80`, `:443` |
 | `authentik` | SSO / identity provider (2026.8.5) + PostgreSQL 16 + Redis 7 | `https://auth.hl.mehrwert.icu` |
 | `whoami` | Test service proving routing + forward-auth | `https://whoami.hl.mehrwert.icu` |
+| `silverbullet` | SilverBullet 2.9.0 markdown wiki (notes), forward-auth only | `https://notes.hl.mehrwert.icu` |
+| `hawatch` | watchdog: polls HA Core, reboots VM 201 via the PVE API when it stays dead | internal |
 | `frp` | frpc client for the tunnel to the public VPS (frps lives there) | outbound to `<VPS>:7000` |
 
 `scripts/smoke-test-edge.py` verifies the chain without public DNS (hostnames are

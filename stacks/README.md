@@ -193,3 +193,29 @@ mit getrennten Config-Verzeichnissen:
 Beide Instanzen haben einen `webplain`-Router für den Tunnel. Eine Änderung an der
 Dienstliste = YAML im Repo anpassen → Commit → Sync; Homepage liest die Dateien
 ohne Neustart neu ein.
+
+## SilverBullet (`stacks/silverbullet`)
+
+`ghcr.io/silverbulletmd/silverbullet:2.9.0`, Notizen als Markdown im Volume
+`silverbullet_space` (`/space`). **Kein eigenes Login** — der Zugriff läuft
+ausschließlich über den authentik-Forward-Auth (beide Entrypoints, plus
+Outpost-Callback-Router). Deshalb: `SB_USER` nicht setzen, sonst doppelter Login.
+
+- `https://notes.hl.mehrwert.icu/` → 302 auf authentik; App `notes`, Gruppe `homelab-users`
+- Volume ist der einzige Zustand: Backup = `docker run --rm -v silverbullet_space:/s ... tar`
+
+## HA-Watchdog (`stacks/hawatch`)
+
+Home Assistant ist eine VM (OpenTofu), kein Container — Komodo kann sie nicht
+verwalten. `hawatch` schließt die Lücke:
+
+- pollt `HA_URL` (Default `http://192.168.178.74:8123`) alle 60 s
+- nach 3 Fehlversuchen (und 300 s Startschonfrist) `POST /nodes/pve2/qemu/201/status/reboot`
+- danach 3600 s Abkühlzeit → kein Reboot-Loop bei kaputter Config
+- Token `tofu@pve!hawatch` (Rolle `Hawatch`: `VM.Audit`, `VM.PowerMgmt`, ACL nur `/vms/201`),
+  Secret als Komodo-Variable `PVE_TOKEN_SECRET`
+
+Grenze: der Watchdog heilt **Prozess-/Boot-Hänger**, nicht falsche Konfiguration.
+Antwortet HA auf dem falschen Port, rebootet er endlos im Stundentakt — siehe
+README-Abschnitt *Home Assistant self-healing* (Port in `/config/.storage/http`).
+
