@@ -43,6 +43,7 @@ SYNC_FILE = os.environ.get("SYNC_FILE", "komodo/homelab.toml")
 WAIT = int(os.environ.get("WAIT", "900"))
 
 JWT = ""
+RENDER_VALUES = {}
 
 
 def api(path, body=None, method="POST"):
@@ -218,9 +219,34 @@ def sync_stacks_from_toml():
         cfg["environment"] = render(cfg.get("environment", ""))
         st, res = api("/write/UpdateStack", {"id": by_name[name]["id"], "config": cfg})
         print(f"  UpdateStack {name}: {st}")
+        materialize_templates(name, cfg.get("run_directory", ""))
         st, res = api("/execute/DeployStack", {"stack": name})
         print(f"  DeployStack {name}: {st}")
 
+
+
+STACKS_ROOT = pathlib.Path(os.environ.get("STACKS_ROOT", "/etc/komodo/stacks"))
+
+
+def materialize_templates(name, run_directory):
+    """`<file>.template` aus dem Repo mit den Komodo-Variablen rendern und als
+    `<file>` ins Stack-Verzeichnis schreiben.
+
+    Komodo schreibt nur das .env; Dateien wie client.toml/frpc.toml muessen wir
+    selbst ablegen (config_files deklariert nur Abhaengigkeiten).
+    """
+    src_dir = pathlib.Path(run_directory)
+    dst_dir = STACKS_ROOT / name / run_directory
+    if not src_dir.is_dir() or not dst_dir.is_dir():
+        return
+    for tpl in sorted(src_dir.glob("*.template")):
+        target = dst_dir / tpl.name.removesuffix(".template")
+        content = tpl.read_text()
+        for k, v in RENDER_VALUES.items():
+            content = content.replace(f"[[{k}]]", str(v))
+        target.write_text(content)
+        target.chmod(0o600)
+        print(f"  Datei geschrieben: {target}")
 
 def main():
     if not PASS:
@@ -241,6 +267,8 @@ def main():
             print("Server-Adresse ok")
 
     vals = load_secrets()
+    global RENDER_VALUES
+    RENDER_VALUES.update(vals)
     print("Variablen:")
     print("  DOMAIN:", set_variable("DOMAIN", vals["DOMAIN"], False))
     for name in ("AK_DB_PASS", "AK_SECRET_KEY", "AK_ADMIN_EMAIL", "AK_ADMIN_PASS",
@@ -262,6 +290,10 @@ def main():
         for name in ("RATHOLE_PUBKEY", "RATHOLE_TOKEN"):
             if os.environ.get(name):
                 print(f"  {name}:", set_variable(name, os.environ[name], name == "RATHOLE_TOKEN"))
+
+    # Render-Werte = alle Komodo-Variablen (das ist die Quelle, die auch Komodo nutzt)
+    st, vars_now = api("/read/ListVariables")
+    RENDER_VALUES.update({v["name"]: v.get("value", "") for v in (vars_now or [])})
 
     ensure_sync()
     run_sync()
