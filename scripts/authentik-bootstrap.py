@@ -238,8 +238,11 @@ def main():
         provider_pks.append(pk)
 
     # Zugriffs-Policies je App (nur Mitglieder der jeweiligen Gruppe)
-    st, apps_all = api("GET", "/core/applications/?page_size=200")
-    app_uuid = {a["slug"]: a["pk"] for a in (apps_all or {}).get("results", [])}
+    app_uuid = {}
+    for app_name, _ in APPS:
+        st_a, a = api("GET", f"/core/applications/{app_name}/")
+        if st_a == 200 and isinstance(a, dict):
+            app_uuid[app_name] = a["pk"]
     print("Zugriff:")
     for app, group in APP_GROUPS.items():
         if app not in app_uuid:
