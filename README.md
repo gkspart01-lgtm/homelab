@@ -395,3 +395,34 @@ Open for the public path: an IONOS VPS running `frps` (config template in
 `stacks/frp/frps.toml.example`), the DNS records for `auth.` and `whoami.`, and the
 IONOS DNS-API credentials to switch Traefik from the self-signed certificate to
 Let's Encrypt DNS-01.
+
+## Access control (authentik groups)
+
+`scripts/authentik-bootstrap.py` legt die Gruppen und je App eine Zugriffs-Policy an
+(idempotent, `APP_GROUPS` überschreibbar):
+
+| Gruppe | Zugriff | Mitglieder |
+|---|---|---|
+| `homelab-admins` | alle Apps (Komodo, Homepage privat, whoami) | `akadmin` (automatisch) |
+| `homelab-users` | Homepage privat, whoami — **nicht** Komodo | noch keine |
+
+Mechanik: pro App eine Expression-Policy
+`ak_is_group_member(request.user, name="<gruppe>") or ak_is_group_member(request.user, name="homelab-admins")`,
+gebunden als `PolicyBinding` an die Application. Ohne passende Gruppe zeigt authentik
+„You do not have access to this application".
+
+Neue Benutzer: authentik-UI → *Directory → Users → New*, Passwort setzen, dann unter
+*Directory → Groups → homelab-users → Add user*. Ohne Gruppenzugehörigkeit ist der
+Account nutzlos (kein Zugriff auf irgendeine App).
+
+Prüfen ohne Login:
+
+```bash
+AUTHENTIK_TOKEN=$(grep AK_BOOTSTRAP_TOKEN stacks/komodo/secrets.env | cut -d= -f2) \
+  python3 scripts/authentik-verify-acl.py
+# App       akadmin (admin)   ohne Gruppe Ergebnis
+# komodo    True              False       OK
+# home      True              False       OK
+# whoami    True              False       OK
+```
+
