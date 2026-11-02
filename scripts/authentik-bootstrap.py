@@ -53,6 +53,27 @@ def parse_apps():
 APPS = parse_apps()
 
 
+def parse_app_groups():
+    """Welche Gruppe darf welche App nutzen? "app:gruppe,..."
+
+    Default: Komodo nur fuer Admins, Homepage privat + whoami fuer alle Homelab-Nutzer.
+    """
+    default = "komodo:homelab-admins,home:homelab-users,whoami:homelab-users"
+    raw = os.environ.get("APP_GROUPS", default)
+    out = {}
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        app, _, group = item.partition(":")
+        out[app.strip()] = group.strip() or "homelab-users"
+    return out
+
+
+APP_GROUPS = parse_app_groups()
+REQUIRED_GROUPS = sorted(set(APP_GROUPS.values()) | {"homelab-admins"})
+
+
 def api(method, path, body=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(f"{URL}/api/v3{path}", data=data, method=method)
@@ -127,6 +148,50 @@ def ensure_application(name, host, provider_pk):
     return f"Application {name}: angelegt"
 
 
+
+def ensure_group(name):
+    st, groups = api("GET", "/core/groups/?page_size=200")
+    existing = next((g for g in (groups or {}).get("results", []) if g["name"] == name), None)
+    if existing:
+        return existing["pk"]
+    st, res = api("POST", "/core/groups/", {"name": name})
+    if st not in (200, 201):
+        sys.exit(f"Gruppe {name} anlegen fehlgeschlagen: {st} {res}")
+    return res["pk"]
+
+
+def ensure_group_policy(app, group):
+    """Expression-Policy: Zugriff nur fuer Mitglieder der Gruppe."""
+    name = f"access-{app}-{group}"
+    expression = f'return ak_is_group_member(request.user, name="{group}")'
+    st, policies = api("GET", "/policies/expression/?page_size=200")
+    existing = next((p for p in (policies or {}).get("results", []) if p["name"] == name), None)
+    if existing:
+        st, res = api("PATCH", f"/policies/expression/{existing['pk']}/",
+                      {"expression": expression, "execution_logging": False})
+        return existing["pk"], f"Policy {name}: aktualisiert ({st})"
+    st, res = api("POST", "/policies/expression/",
+                  {"name": name, "expression": expression, "execution_logging": False})
+    if st not in (200, 201):
+        sys.exit(f"Policy {name} anlegen fehlgeschlagen: {st} {res}")
+    return res["pk"], f"Policy {name}: angelegt"
+
+
+def ensure_binding(app_uuid, policy_pk, app, group):
+    st, bindings = api("GET", "/policies/bindings/?page_size=200")
+    for b in (bindings or {}).get("results", []):
+        tgt = (b.get("target") or {}).get("pk") if isinstance(b.get("target"), dict) else b.get("target")
+        pol = (b.get("policy") or {}).get("pk") if isinstance(b.get("policy"), dict) else b.get("policy")
+        if tgt == app_uuid and pol == policy_pk:
+            return f"Binding {app}<-{group}: vorhanden"
+    st, res = api("POST", "/policies/bindings/", {
+        "target": app_uuid, "policy": policy_pk, "order": 0,
+        "enabled": True, "negate": False, "timeout": 30, "failure_result": False,
+    })
+    if st not in (200, 201):
+        sys.exit(f"Binding {app} fehlgeschlagen: {st} {res}")
+    return f"Binding {app}<-{group}: angelegt"
+
 def main():
     if not TOKEN:
         sys.exit("AUTHENTIK_TOKEN fehlt")
@@ -147,12 +212,27 @@ def main():
         sys.exit("Default-Flows nicht gefunden (nach 300 s)")
     print(f"Flows: authorization={authz} invalidation={invalid}")
 
+    # Gruppen anlegen (ACL-Basis)
+    for g in REQUIRED_GROUPS:
+        print(f"Gruppe {g}: {ensure_group(g)}")
+
     provider_pks = []
     for name, host in APPS:
         pk, msg = ensure_provider(name, host, authz, invalid)
         print(" ", msg)
         print(" ", ensure_application(name, host, pk))
         provider_pks.append(pk)
+
+    # Zugriffs-Policies je App (nur Mitglieder der jeweiligen Gruppe)
+    st, apps_all = api("GET", "/core/applications/?page_size=200")
+    app_uuid = {a["slug"]: a["pk"] for a in (apps_all or {}).get("results", [])}
+    print("Zugriff:")
+    for app, group in APP_GROUPS.items():
+        if app not in app_uuid:
+            continue
+        pol_pk, msg = ensure_group_policy(app, group)
+        print(" ", msg)
+        print(" ", ensure_binding(app_uuid[app], pol_pk, app, group))
 
     # Alle Provider dem Embedded Outpost zuordnen
     st, outposts = api("GET", "/outposts/instances/?page_size=50")
@@ -177,9 +257,20 @@ def main():
             st, _ = api("PATCH", f"/core/brands/{b['brand_uuid']}/", {"domain": DOMAIN})
             print(f"Brand-Domain -> {DOMAIN}: {st}")
 
+    # Der Erst-Admin muss in der Admin-Gruppe sein, sonst sperrt er sich selbst aus
+    st, users = api("GET", "/core/users/?page_size=200")
+    admin = next((u for u in (users or {}).get("results", []) if u["username"] == "akadmin"), None)
+    st, groups = api("GET", "/core/groups/?page_size=200")
+    admin_group = next((g for g in (groups or {}).get("results", []) if g["name"] == "homelab-admins"), None)
+    if admin and admin_group and admin["pk"] not in [u["pk"] for u in admin_group.get("users_obj", [])]:
+        users_list = [u["pk"] for u in admin_group.get("users_obj", [])] + [admin["pk"]]
+        api("PATCH", f"/core/groups/{admin_group['pk']}/", {"users": users_list})
+        print("akadmin -> Gruppe homelab-admins")
+
     print("\nGeschützt:")
     for name, host in APPS:
-        print(f"  https://{host}/  (Provider/Application '{name}')")
+        group = APP_GROUPS.get(name, "—")
+        print(f"  https://{host}/  (App '{name}', Zugriff: Gruppe {group})")
     print("Hinweis: den authentik-server danach einmal neu starten (neue Outpost-Config).")
 
 

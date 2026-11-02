@@ -29,9 +29,9 @@
         href: https://192.168.181.100
         description: Docker-Host (VM 200)
         icon: docker.png
-    - Home Assistant:
-        href: http://192.168.178.71:8123
-        description: Smart Home
+    - Home Assistant (VM 201):
+        href: http://192.168.178.74:8123
+        description: Smart Home — HAOS, von OpenTofu verwaltet
         icon: home-assistant.png
     - PiAmWR:
         href: http://192.168.180.44
