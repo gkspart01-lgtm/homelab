@@ -32,7 +32,8 @@ CTX.verify_mode = ssl.CERT_NONE
 
 
 def parse_apps():
-    default = f"whoami:whoami.{DOMAIN},komodo:komodo.{DOMAIN},home:home.{DOMAIN}"
+    default = (f"whoami:whoami.{DOMAIN},komodo:komodo.{DOMAIN},"
+               f"home:home.{DOMAIN},notes:notes.{DOMAIN}")
     raw = os.environ.get("APPS", default)
     apps = []
     for item in raw.split(","):
@@ -58,7 +59,8 @@ def parse_app_groups():
 
     Default: Komodo nur fuer Admins, Homepage privat + whoami fuer alle Homelab-Nutzer.
     """
-    default = "komodo:homelab-admins,home:homelab-users,whoami:homelab-users"
+    default = ("komodo:homelab-admins,home:homelab-users,"
+               "whoami:homelab-users,notes:homelab-users")
     raw = os.environ.get("APP_GROUPS", default)
     out = {}
     for item in raw.split(","):

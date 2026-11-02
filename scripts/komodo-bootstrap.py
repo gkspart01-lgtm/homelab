@@ -299,6 +299,16 @@ def main():
     st, vars_now = api("/read/ListVariables")
     RENDER_VALUES.update({v["name"]: v.get("value", "") for v in (vars_now or [])})
 
+    # HA-Watchdog: Variablen nur anlegen, wenn der PVE-Token bekannt ist
+    if os.environ.get("PVE_TOKEN_SECRET"):
+        print("HA-Watchdog-Variablen:")
+        print("  HA_URL:", set_variable("HA_URL", os.environ.get("HA_URL", "http://192.168.178.74:8123"), False))
+        print("  PVE_API:", set_variable("PVE_API", os.environ.get("PVE_API", "https://192.168.181.99:8006/api2/json"), False))
+        print("  PVE_NODE:", set_variable("PVE_NODE", os.environ.get("PVE_NODE", "pve2"), False))
+        print("  PVE_TOKEN_ID:", set_variable("PVE_TOKEN_ID", os.environ.get("PVE_TOKEN_ID", "tofu@pve!hawatch"), False))
+        print("  PVE_TOKEN_SECRET:", set_variable("PVE_TOKEN_SECRET", os.environ["PVE_TOKEN_SECRET"], True))
+        print("  HA_VMID:", set_variable("HA_VMID", os.environ.get("HA_VMID", "201"), False))
+
     ensure_sync()
     run_sync()
     if os.environ.get("SYNC_STACKS", "1") == "1":

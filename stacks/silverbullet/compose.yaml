@@ -1,0 +1,45 @@
+# SilverBullet: persönliche Notizen (Markdown-Wiki) hinter authentik.
+# Kein eigenes Login aktiv - der Zugriff ist ausschliesslich ueber den
+# Forward-Auth-Gate von authentik moeglich (jeder Pfad, beide Entrypoints).
+services:
+  silverbullet:
+    image: ghcr.io/silverbulletmd/silverbullet:2.9.0
+    container_name: silverbullet
+    restart: unless-stopped
+    environment:
+      SB_LOG_LEVEL: info
+    volumes:
+      - silverbullet_space:/space
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      # HTTPS aus dem LAN
+      - traefik.http.routers.notes.rule=Host(`notes.${DOMAIN}`)
+      - traefik.http.routers.notes.entrypoints=websecure
+      - traefik.http.routers.notes.tls=true
+      - traefik.http.routers.notes.middlewares=authentik@file,security-headers@file
+      - traefik.http.services.notes.loadbalancer.server.port=3000
+      # Callback des Forward-Auth-Flows
+      - traefik.http.routers.notes-outpost.rule=Host(`notes.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.notes-outpost.entrypoints=websecure
+      - traefik.http.routers.notes-outpost.tls=true
+      - traefik.http.routers.notes-outpost.priority=100
+      - traefik.http.routers.notes-outpost.service=authentik@file
+      # Klartext-Variante fuer den rathole-Tunnel
+      - traefik.http.routers.notes-plain.rule=Host(`notes.${DOMAIN}`)
+      - traefik.http.routers.notes-plain.entrypoints=webplain
+      - traefik.http.routers.notes-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.notes-plain.service=notes
+      - traefik.http.routers.notes-plain-outpost.rule=Host(`notes.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.notes-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.notes-plain-outpost.priority=100
+      - traefik.http.routers.notes-plain-outpost.service=authentik@file
+
+volumes:
+  silverbullet_space:
+
+networks:
+  edge:
+    external: true

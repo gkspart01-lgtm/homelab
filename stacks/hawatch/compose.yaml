@@ -1,0 +1,32 @@
+# Watchdog für Home Assistant (VM 201 auf pve2).
+#
+# Prüft regelmäßig, ob HA Core auf :8123 antwortet. Nach N Fehlversuchen in Folge
+# wird die VM über die Proxmox-API neu gestartet (mit Abkühlzeit, damit kein
+# Reboot-Loop entsteht). So kommt HA nach einem Ausfall selbstständig wieder hoch.
+#
+# Benötigt: PVE-API-Token mit VM.Audit + VM.PowerMgmt auf der VM 201.
+services:
+  hawatch:
+    image: alpine:3.21
+    container_name: hawatch
+    restart: unless-stopped
+    environment:
+      HA_URL: ${HA_URL}
+      PVE_API: ${PVE_API}
+      PVE_NODE: ${PVE_NODE}
+      PVE_TOKEN_ID: ${PVE_TOKEN_ID}
+      PVE_TOKEN_SECRET: ${PVE_TOKEN_SECRET}
+      VMID: ${VMID}
+      FAILS_BEFORE_REBOOT: ${FAILS_BEFORE_REBOOT}
+      COOLDOWN_SECONDS: ${COOLDOWN_SECONDS}
+      CHECK_INTERVAL: ${CHECK_INTERVAL}
+    # Das Skript wird beim Start aus dem Repo gerendert (siehe komodo-bootstrap.py)
+    command: ["/bin/sh", "/opt/hawatch.sh"]
+    volumes:
+      - ./hawatch.sh:/opt/hawatch.sh:ro
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

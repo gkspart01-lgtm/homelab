@@ -16,6 +16,10 @@
         href: https://whoami.hl.mehrwert.icu
         description: Header-Testdienst hinter Forward-Auth
         icon: traefik.png
+    - SilverBullet (Notizen):
+        href: https://notes.hl.mehrwert.icu
+        description: Markdown-Wiki, hinter SSO
+        icon: silverbullet.png
     - Homepage (diese Seite):
         href: https://home.hl.mehrwert.icu
         description: interne Übersicht hinter SSO

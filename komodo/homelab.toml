@@ -140,3 +140,48 @@ branch = "main"
 run_directory = "stacks/rathole"
 file_paths = ["compose.yaml"]
 
+# --- 3d. SilverBullet (Notizen) --------------------------------------------
+[[stack]]
+name = "silverbullet"
+description = "SilverBullet Markdown-Wiki hinter authentik"
+tags = ["edge", "prod"]
+deploy = true
+after = ["edge", "authentik"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/silverbullet"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+"""
+
+# --- 3e. Watchdog fuer Home Assistant (VM 201) -----------------------------
+[[stack]]
+name = "hawatch"
+description = "Prueft HA Core und startet die VM per PVE-API neu, wenn sie haengt"
+tags = ["edge", "ops"]
+deploy = true
+after = ["edge"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/hawatch"
+file_paths = ["compose.yaml"]
+environment = """
+HA_URL = [[HA_URL]]
+PVE_API = [[PVE_API]]
+PVE_NODE = [[PVE_NODE]]
+PVE_TOKEN_ID = [[PVE_TOKEN_ID]]
+PVE_TOKEN_SECRET = [[PVE_TOKEN_SECRET]]
+VMID = [[HA_VMID]]
+FAILS_BEFORE_REBOOT = 3
+COOLDOWN_SECONDS = 3600
+CHECK_INTERVAL = 60
+"""
