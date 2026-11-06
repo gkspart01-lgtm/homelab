@@ -1,6 +1,15 @@
+# Secrets und lokaler Zustand bleiben draußen
 stacks/*/.env
 stacks/frp/frpc.toml
 stacks/frp/test-config.toml
-tofu/tfplan
-komodo/*.local.toml
 stacks/komodo/secrets.env
+komodo/*.local.toml
+
+# OpenTofu
+tofu/tfplan
+tofu/*.tfplan
+tofu/*.tfstate
+tofu/*.tfstate.*
+tofu/*.auto.tfvars
+tofu/.terraform/
+tofu/.terraform.tfstate.lock.info

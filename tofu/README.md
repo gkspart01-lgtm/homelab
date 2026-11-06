@@ -10,10 +10,11 @@ tofu plan      # Summe der RAM-Reservierung steht in ram_total_mb
 tofu apply
 ```
 
-* Nur die Datei `nodes.auto.tfvars` enthält Geheimnisse (Token) – sie ist in `.gitignore`
-  und wird per restic gesichert.
-* `enabled = false` deaktiviert einen Dienst, ohne ihn zu löschen: so bleibt das
-  RAM-Budget reproduzierbar, auch wenn ein Dienst noch nicht laufen kann.
-* State: liegt lokal (`terraform.tfstate`) und wird über `hosts/.../restic-backup.sh`
-  offsite gesichert. Wer will, kann ihn per `sops -e` zusätzlich ins Git legen.
-* Der Provider braucht SSH auf den Host (Datei-Uploads, Cloud-Init-ISO).
+- Nur `nodes.auto.tfvars` enthält Geheimnisse (API-Token) und ist gitignored.
+- `enabled = false` deaktiviert einen Gast, ohne ihn zu löschen — das RAM-Budget bleibt
+  reproduzierbar, auch wenn ein Dienst noch nicht laufen kann.
+- Der State liegt lokal (`terraform.tfstate`, gitignored). Sichern über `vzdump` des
+  Gastes bzw. ein Datei-Backup des Verzeichnisses — ohne State kein `tofu destroy`.
+- Der Provider braucht SSH auf den Host (Datei-Uploads, Cloud-Init).
+- Dateien: `main.tf` (Provider, VMs, LXC), `haos.tf` (HAOS als eigene UEFI-Ressource),
+  `variables.tf`, `nodes.auto.tfvars.example`, `build-template9000.sh`.

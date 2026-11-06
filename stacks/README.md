@@ -1,221 +1,50 @@
 # Stacks auf `docker01` (192.168.181.100)
 
-Docker-Compose-Stacks für den Edge. Jeder Stack ist eigenständig, Secrets liegen in
-einer lokalen `.env` (gitignored), die Konfiguration selbst ist im Git.
+Jeder Stack ist eigenständig; Konfiguration im Git, Secrets in `.env` (gitignored) bzw.
+als Komodo-Variablen. Quelle der Wahrheit für „was läuft" ist `komodo/homelab.toml`.
 
-| Stack | Zweck | Ports / Adresse | Abhängig von |
-|---|---|---|---|
-| `edge/` | Traefik v3: HTTP→HTTPS, TLS, Routing über Docker-Labels, Dashboard | `:80`, `:443` | – |
-| `authentik/` | Identity Provider (SSO, Proxy-Provider/Forward-Auth) + PostgreSQL + Redis | `https://auth.<DOMAIN>`; `127.0.0.1:9000` nur für Bootstrap | `edge` |
-| `whoami/` | Testdienst, beweist Routing + SSO-Gate | `https://whoami.<DOMAIN>` | `edge`, `authentik` |
-| `frp/` | Client-Seite des Tunnels zum öffentlichen VPS (frps-panel dort) — **nicht aktiv** | ausgehend zu `<VPS>:7001` | `edge` |
-| `rathole/` | **aktiver** Tunnel zum VPS (Noise-Control-Channel, TCP) | ausgehend zu `<VPS>:8443` | `edge` |
-| `homepage/` | Dienst-Übersicht, zwei Instanzen: `homepage-public` (Apex, kein Login) und `homepage-private` (hinter authentik) | `https://hl.<DOMAIN>`, `https://home.<DOMAIN>` | `edge`, `authentik` |
-| `testpage/` | statische Testseite (außer Dienst, die öffentliche Homepage übernimmt die Apex-Domain) | – | – |
-| `komodo/` | Deployment-Plattform: Core + Periphery + MongoDB. Deployt `edge`, `authentik`, `whoami` aus `komodo/homelab.toml` | `https://komodo.<DOMAIN>` (eigener Login) | – (wird per `bootstrap-komodo.sh` gestartet) |
+| Stack | Zweck | Adresse / Zugriff |
+|---|---|---|
+| `edge/` | Traefik v3: HTTP→HTTPS, TLS, Routing per Docker-Label, Dashboard | `:80`, `:443` |
+| `authentik/` | IdP, Proxy-Provider/Forward-Auth, PostgreSQL, Redis | `https://auth.<DOMAIN>` |
+| `whoami/` | Testdienst für Routing + SSO | `https://whoami.<DOMAIN>` |
+| `homepage/` | Dienstübersicht, zwei Instanzen (`config-public`, `config-private`) | `https://<DOMAIN>`, `https://home.<DOMAIN>` |
+| `silverbullet/` | Notizen (Markdown), Volume `silverbullet_space` | `https://notes.<DOMAIN>` |
+| `rathole/` | Tunnel zum VPS (Noise, TCP) | ausgehend `:8443` |
+| `hawatch/` | Watchdog für die HA-VM (Poll + PVE-Reboot) | intern |
+| `komodo/` | Deployment-Plattform (Core, Periphery, MongoDB) | `https://komodo.<DOMAIN>` |
+| `frp/` | frpc-Client — **geparkt** (`deploy = false`) | ausgehend `:7001` |
 
-## Komodo als Einstiegspunkt (empfohlen)
+## Neue App
 
-Nach dem OpenTofu-Lauf ist `scripts/bootstrap-komodo.sh` der einzige verbleibende Schritt:
+Vier Stellen, dann ein Sync:
 
-```bash
-sudo git clone https://github.com/gkspart01-lgtm/homelab /opt/homelab
-sudo bash /opt/homelab/scripts/bootstrap-komodo.sh
-```
-
-Der Ablauf steckt in `scripts/`:
-
-1. `bootstrap-docker.sh` — Docker Engine + Compose
-2. `stacks/komodo` hochfahren (Core, Periphery, MongoDB), UI auf `https://komodo.<DOMAIN>`
-3. `komodo-bootstrap.py` — Secret-Variablen anlegen, Resource Sync `homelab` registrieren,
-   Sync ausführen: Komodo legt Server `docker01` an und deployt `edge` → `authentik` → `whoami`
-4. `authentik-bootstrap.py` — Proxy-Provider, Application, Embedded Outpost und
-   `config.authentik_host` setzen, danach `docker restart authentik-server`
-
-Ab dann gilt: **`komodo/homelab.toml` ist die Quelle der Wahrheit** für Server und Stacks.
-Änderung = Commit + Sync (UI, `km x sync homelab` oder Git-Webhook). Die Secrets stehen als
-Komodo-Variablen (`is_secret`) in der Datenbank, nicht im Repo; erzeugt und abgelegt in
-`/root/.komodo-homelab-secrets.env` (chmod 600).
-
-Zwei bewusste Entscheidungen:
-
-- **Komodo-UI hängt nicht hinter authentik.** Komodo deployt authentik selbst — ein
-  IdP-Ausfall darf den Zugang zum Reparaturwerkzeug nicht blockieren. Komodo hat eine
-  eigene Anmeldung (`admin` + Passwort aus `stacks/komodo/.env`), die UI ist nur per TLS
-  erreichbar.
-- **`frp` ist deklariert, aber `deploy = false`.** Aktivieren, sobald die VPS-Seite passt:
-
-  ```bash
-  FRP_SERVER_ADDR=rws8.mehrwert.icu FRP_USER=hl FRP_TOKEN=<token> \
-    SECRETS_FILE=stacks/komodo/secrets.env python3 scripts/komodo-bootstrap.py
-  # dann in komodo/homelab.toml bei [[stack]] name="frp" -> deploy = true, Sync
-  ```
-
-### frp auf dem VPS: frps-panel und die Port-Falle
-
-Der VPS fährt `frps` mit dem Plugin **frps-panel** (yhl452493373/frps-panel, Port 7200),
-das Nutzer per `frps-tokens.toml` verwaltet. Verifiziertes Verhalten (lokal nachgebaut,
-gleiche Version, gleiche Fehlermeldungen):
-
-- Der Client meldet sich mit `user` + **`metadatas.token`** an — `auth.token` wird
-  abgelehnt („token in login doesn't match token from configuration"), ein fehlender
-  Token mit „user or meta token can not be empty".
-- **`ports` muss Strings enthalten.** Das Panel vergleicht die Einträge als `interface{}`
-  gegen den `int`-Remote-Port; TOML-Integer werden als `int64` dekodiert und sind nie
-  gleich → `ports = [8082]` matcht nie („user [hl] port [8082] is not allowed"),
-  `ports = ["8082"]` funktioniert. Bereiche gehen als `"10000-10200"`.
-- Danach: `frpc` loggt `start proxy success`, frps: `tcp proxy listen port [8082]`.
-
-Client-Konfiguration, die so verifiziert wurde:
-
-```toml
-serverAddr = "rws8.mehrwert.icu"   # VPS
-serverPort = 7001                  # frps-p
-user = "hl"
-metadatas.token = "<token aus frps-tokens.toml>"
-
-[[proxies]]
-name = "hl.npm-http"
-type = "tcp"
-localIP = "192.168.181.100"
-localPort = 8081                   # Traefik-webplain, NICHT 80 (dort Redirect)
-remotePort = 8082                  # Port, auf den der VPS-Traefik zeigt
-```
-
-Warum `localPort 8081`: Der VPS-Traefik terminiert TLS und schickt **Klartext** weiter.
-Traefik hat dafür den Entrypoint `webplain :8081` (ohne HTTPS-Redirect) plus
-`*-plain`-Router und die Middleware `tunnel-headers@file` (setzt
-`X-Forwarded-Proto: https`), sonst entsteht eine Redirect-Schleife bzw. authentik baut
-falsche URLs. Verifiziert durch den lokalen Tunnel: `whoami` → 302 zum Login,
-`auth/-/health/live/` → 200, `komodo` → 200.
-
-## Wie die Kette funktioniert
-
-1. Anfrage an `https://whoami.<DOMAIN>` → Traefik-Router `whoami` mit Middleware
-   `authentik@file`.
-2. Traefik fragt den Embedded Outpost:
-   `http://authentik-server:9000/outpost.goauthentik.io/auth/traefik`.
-3. Ohne Sitzung antwortet der Outpost mit einem Redirect auf
-   `https://auth.<DOMAIN>/application/o/authorize/...`; der Browser durchläuft den
-   Login-Flow und kommt über
-   `https://whoami.<DOMAIN>/outpost.goauthentik.io/callback` zurück.
-4. Mit gültiger Sitzung liefert Traefik die Anfrage an `whoami` weiter und setzt die
-   `X-authentik-*`-Header (Benutzer, Gruppen, E-Mail).
-
-Deshalb braucht **jede** geschützte App zwei Router: den normalen Router und einen
-zweiten für `PathPrefix(/outpost.goauthentik.io/)`, der auf den Outpost zeigt
-(`authentik@file`, Priorität höher). Fehlt der zweite, schlägt der Callback fehl.
-
-## Fallstricke, die Zeit gekostet haben
-
-- **`AUTHENTIK_HOST` (nicht `AUTHENTIK_HOST_BROWSER`)**: Der *embedded* Outpost baut
-  Browser-URLs gegen `AUTHENTIK_HOST`. Ohne die Variable (bzw. den Wert im
-  Outpost-`config`) läuft der Login-Redirect auf `http://localhost/`.
-  `AUTHENTIK_HOST_BROWSER` gilt nur für Standalone-Outposts.
-- **`authentik_host` steht auch in der Outpost-Konfiguration in der Datenbank** und
-  hat Vorrang. `scripts/authentik-bootstrap.py` setzt beide Stellen.
-
-## Verifikation
+1. `stacks/<name>/compose.yaml` — Router-Satz: `websecure` mit `authentik@file`, dazu
+   `*-plain` auf `webplain` mit `tunnel-headers@file,authentik@file` und je ein
+   `PathPrefix('/outpost.goauthentik.io/')`-Router mit Priorität 100.
+2. `komodo/homelab.toml` — `[[stack]]` mit `deploy = true`, `after = ["edge", "authentik"]`,
+   `run_directory`, `environment` (nur `[[VAR]]`, keine Literale).
+3. `scripts/authentik-bootstrap.py` — `APPS` (`app:host`) und `APP_GROUPS` (`app:gruppe`)
+   ergänzen, sonst hat niemand Zugriff.
+4. `stacks/homepage/config-private/services.yaml` — Eintrag in der Übersicht.
 
 ```bash
-# Kette: Redirect, Gate, Health, Login-Flow (braucht kein öffentliches DNS)
-EDGE_IP=192.168.181.100 DOMAIN=hl.mehrwert.icu python3 scripts/smoke-test-edge.py
-
-# frp-Tunnel: frps als Testserver lokal, echte Traefik-Ports bleiben unberührt
-bash scripts/test-frp-tunnel.sh          # auf docker01 ausführen
-```
-
-TLS ist im Lab selbstsigniert (Traefik-Default). Let's Encrypt per DNS-01 (IONOS)
-ist in `stacks/edge/traefik.yml` vorbereitet und wird aktiviert, sobald
-`IONOS_API_KEY`/`IONOS_API_SECRET`/`ACME_EMAIL` in `edge/.env` stehen.
-
-### Komodo
-
-- **Periphery spricht TLS** (`ssl_enabled = true` per Default). Ein Server mit
-  `http://periphery:8120` bleibt dauerhaft `NotOk`; richtig ist
-  `https://periphery:8120` **plus** `insecure_tls = true` (Selbstsignat).
-- **API-Form**: `POST /auth/login` mit `{"type":"LoginLocalUser","params":{...}}` liefert
-  ein JWT; danach `Authorization: Bearer <jwt>` gegen `/read/*`, `/write/*`, `/execute/*`.
-  Read-Endpunkte erwarten trotzdem einen JSON-Body (notfalls `{}`).
-- **Variablen aktualisieren**: `CreateVariable` schlägt bei vorhandenem Namen fehl; der
-  Update-Operation heißt `UpdateVariableValue` (nicht `UpdateVariable`).
-- **Stack-Status kommt klein** (`running`), nicht `Running` — Statusvergleiche
-  case-insensitiv schreiben.
-- **Reihenfolge** über `after = [...]` in der Stack-Deklaration, Env pro Stack über
-  `stack.config.environment` (wird als `.env` im `run_directory` geschrieben), Secrets per
-  `[[VARIABLE]]` interpoliert.
-- **Jede geschützte Domain braucht einen eigenen authentik-Provider** (hier `whoami`).
-  Eine Domain ohne Provider bekommt vom Outpost keine Freigabe — beim Test der
-  Komodo-UI sah das wie ein kaputter Reverse-Proxy aus (Antwort war die authentik-Seite).
-
-## rathole statt frp (aktueller Weg)
-
-Der VPS hält TLS (Traefik + Let's Encrypt) und einen rathole-Server; der Client im LAN
-baut den Control-Channel per Noise auf und reicht **Klartext** an Traefiks
-`webplain :8081` weiter. Damit ist frp nicht mehr nötig.
-
-```toml
-# client.toml (wird von Komodo aus [[RATHOLE_*]] erzeugt)
-[client]
-remote_addr = "hl.mehrwert.icu:8443"
-[client.transport]
-type = "noise"
-[client.transport.noise]
-remote_public_key = "<Public Key des VPS>"
-[client.services.hl]
-token = "<Service-Token>"
-local_addr = "127.0.0.1:8081"
-```
-
-Variablen setzen und Sync laufen lassen:
-
-```bash
-RATHOLE_REMOTE=hl.mehrwert.icu:8443 \
-RATHOLE_PUBKEY=<public key> RATHOLE_TOKEN=<token> \
+cd /opt/homelab && sudo git pull
 SECRETS_FILE=stacks/komodo/secrets.env python3 scripts/komodo-bootstrap.py
+sudo docker restart authentik-server     # nur wenn sich authentik-Config geändert hat
+curl -s -o /dev/null -w '%{http_code}\n' https://<name>.hl.mehrwert.icu/   # 302 = Gate greift
 ```
 
-Das Image (`rapiz1/rathole:v0.5.0`) läuft als uid 1000 — in `stacks/rathole/compose.yaml`
-deshalb `user: "0:0"`, sonst kann es die 600er-Config nicht lesen.
+## Betrieb
 
-## Dienst-Übersicht (Homepage, zwei Instanzen)
+- **Deploy:** Sync in der Komodo-UI, `km x sync homelab` oder Git-Webhook.
+- **Secrets:** eine Datei, `stacks/komodo/secrets.env`; Komodo-Variablen werden daraus
+  erzeugt. Nie zwei Quellen parallel pflegen.
+- **Homepage-Inhalt:** YAML ändern → Commit → Sync; die Container lesen ihre Config ohne
+  Neustart neu.
+- **Tunnel:** Client-Config wird aus `[[RATHOLE_*]]` gerendert (`stacks/rathole/client.toml.template`).
+- **Backups:** `docker run --rm -v <volume>:/s -v $PWD:/b alpine tar czf /b/<name>.tgz -C /s .`
+  für alle Volumes mit Zustand (`silverbullet_space`, `authentik_authentik_pgdata`,
+  `komodo_komodo_mongo_data`, `edge_traefik_acme`).
 
-`stacks/homepage` läuft zweimal aus demselben Image (`ghcr.io/gethomepage/homepage:v2.7.0`)
-mit getrennten Config-Verzeichnissen:
-
-- **`config-public`** — Apex-Domain, **kein** Login. Enthält ausschließlich bewusst
-  öffentliche Ziele (Startseite, SSO-Anmeldung). Keine internen Namen, IPs, Admin-Links
-  oder Widgets.
-- **`config-private`** — `home.<DOMAIN>`, hinter `authentik@file` + Outpost-Callback.
-  Zeigt die internen Dienste und LAN-Adressen (Komodo, authentik, whoami, Proxmox,
-  Home Assistant, PiAmWR).
-
-Beide Instanzen haben einen `webplain`-Router für den Tunnel. Eine Änderung an der
-Dienstliste = YAML im Repo anpassen → Commit → Sync; Homepage liest die Dateien
-ohne Neustart neu ein.
-
-## SilverBullet (`stacks/silverbullet`)
-
-`ghcr.io/silverbulletmd/silverbullet:2.9.0`, Notizen als Markdown im Volume
-`silverbullet_space` (`/space`). **Kein eigenes Login** — der Zugriff läuft
-ausschließlich über den authentik-Forward-Auth (beide Entrypoints, plus
-Outpost-Callback-Router). Deshalb: `SB_USER` nicht setzen, sonst doppelter Login.
-
-- `https://notes.hl.mehrwert.icu/` → 302 auf authentik; App `notes`, Gruppe `homelab-users`
-- Volume ist der einzige Zustand: Backup = `docker run --rm -v silverbullet_space:/s ... tar`
-
-## HA-Watchdog (`stacks/hawatch`)
-
-Home Assistant ist eine VM (OpenTofu), kein Container — Komodo kann sie nicht
-verwalten. `hawatch` schließt die Lücke:
-
-- pollt `HA_URL` (Default `http://192.168.178.74:8123`) alle 60 s
-- nach 3 Fehlversuchen (und 300 s Startschonfrist) `POST /nodes/pve2/qemu/201/status/reboot`
-- danach 3600 s Abkühlzeit → kein Reboot-Loop bei kaputter Config
-- Token `tofu@pve!hawatch` (Rolle `Hawatch`: `VM.Audit`, `VM.PowerMgmt`, ACL nur `/vms/201`),
-  Secret als Komodo-Variable `PVE_TOKEN_SECRET`
-
-Grenze: der Watchdog heilt **Prozess-/Boot-Hänger**, nicht falsche Konfiguration.
-Antwortet HA auf dem falschen Port, rebootet er endlos im Stundentakt — siehe
-README-Abschnitt *Home Assistant self-healing* (Port in `/config/.storage/http`).
-
+Fallstricke: `docs/troubleshooting.md`. Entscheidungen: `docs/decisions.md`.

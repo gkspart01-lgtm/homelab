@@ -130,7 +130,7 @@ name = "rathole"
 description = "rathole-Client: TCP-Tunnel zum VPS (dort terminiert Traefik TLS)"
 tags = ["edge"]
 deploy = true
-after = ["testpage"]
+after = ["edge"]
 
 [stack.config]
 server = "docker01"
