@@ -235,6 +235,16 @@ def ensure_oauth_app(slug, name, redirect_uri, group, authz, invalid):
     if not cert:
         sys.exit("kein Signatur-Zertifikat in authentik gefunden")
 
+    # Scope-Mappings und Grant-Typen sind Pflicht: ohne beides liefert der
+    # Provider keine Claims (kein email/name im ID-Token) und lehnt
+    # authorization_code ab ("Invalid grant_type for provider").
+    st, maps = api("GET", "/propertymappings/provider/scope/?page_size=200")
+    map_items = maps.get("results", []) if isinstance(maps, dict) else []
+    by_scope = {m["scope_name"]: m["pk"] for m in map_items}
+    scope_pks = [by_scope[s] for s in ("openid", "email", "profile") if s in by_scope]
+    if len(scope_pks) < 3:
+        sys.exit(f"authentik-Scope-Mappings unvollstaendig: {sorted(by_scope)}")
+
     prov_name = f"oauth-{slug}"
     payload = {
         "name": prov_name,
@@ -247,6 +257,8 @@ def ensure_oauth_app(slug, name, redirect_uri, group, authz, invalid):
         "include_claims_in_id_token": True,
         "sub_mode": "hashed_user_id",
         "access_code_validity": "minutes=1",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "property_mappings": scope_pks,
     }
     st, provs = api("GET", "/providers/oauth2/?page_size=200")
     existing = next((p for p in (provs.get("results", []) if isinstance(provs, dict) else [])
