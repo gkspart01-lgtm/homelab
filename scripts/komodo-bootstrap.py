@@ -288,6 +288,10 @@ def main():
                  "BETTER_AUTH_SECRET"):
         print(f"  {name}:", set_variable(name, vals[name], True))
 
+    for name in ("SPARKY_OIDC_CLIENT_ID", "SPARKY_OIDC_CLIENT_SECRET"):
+        if vals.get(name):
+            print(f"  {name}:", set_variable(name, vals[name], name.endswith("SECRET")))
+
     # frp-Zugang nur anlegen, wenn bekannt (VPS-Adresse + Server-Token)
     if os.environ.get("FRP_SERVER_ADDR"):
         print("frp-Variablen:")

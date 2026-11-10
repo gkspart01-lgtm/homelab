@@ -73,6 +73,24 @@ def parse_app_groups():
 
 
 APP_GROUPS = parse_app_groups()
+
+
+def parse_oidc_apps():
+    """OIDC-Apps (echtes SSO in der App): "slug|Anzeigename|redirect_uri,..." """
+    raw = os.environ.get("OIDC_APPS", "")
+    out = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        parts = [x.strip() for x in item.split("|")]
+        if len(parts) != 3:
+            sys.exit(f"OIDC_APPS: erwartet slug|name|redirect_uri, bekam {item!r}")
+        out.append(tuple(parts))
+    return out
+
+
+OIDC_APPS = parse_oidc_apps()
 REQUIRED_GROUPS = sorted(set(APP_GROUPS.values()) | {"homelab-admins"})
 
 
@@ -208,6 +226,52 @@ def ensure_binding(app_uuid, policy_pk, app, group):
         sys.exit(f"Binding {app} fehlgeschlagen: {st} {res}")
     return f"Binding {app}<-{group}: angelegt"
 
+
+def ensure_oauth_app(slug, name, redirect_uri, group, authz, invalid):
+    """OAuth2/OIDC-Provider + Application, gibt (client_id, client_secret) zurueck."""
+    st, certs = api("GET", "/crypto/certificatekeypairs/?page_size=200")
+    items = certs.get("results", []) if isinstance(certs, dict) else []
+    cert = next((c for c in items if "self-signed" in c["name"].lower()), items[0] if items else None)
+    if not cert:
+        sys.exit("kein Signatur-Zertifikat in authentik gefunden")
+
+    prov_name = f"oauth-{slug}"
+    payload = {
+        "name": prov_name,
+        "authorization_flow": authz,
+        "invalidation_flow": invalid,
+        "client_type": "confidential",
+        "redirect_uris": redirect_uri,
+        "signing_key": cert["pk"],
+        "include_claims_in_id_token": True,
+        "sub_mode": "hashed_user_id",
+        "access_code_validity": "minutes=1",
+    }
+    st, provs = api("GET", "/providers/oauth2/?page_size=200")
+    existing = next((p for p in (provs.get("results", []) if isinstance(provs, dict) else [])
+                     if p["name"] == prov_name), None)
+    if existing:
+        api("PATCH", f"/providers/oauth2/{existing['pk']}/", payload)
+        st, prov = api("GET", f"/providers/oauth2/{existing['pk']}/")
+        msg = f"OIDC {slug}: Provider aktualisiert ({st})"
+    else:
+        st, prov = api("POST", "/providers/oauth2/", payload)
+        if st not in (200, 201):
+            sys.exit(f"OAuth2-Provider {slug} fehlgeschlagen: {st} {prov}")
+        msg = f"OIDC {slug}: Provider angelegt"
+    print(" ", msg)
+
+    from urllib.parse import urlsplit
+    print(" ", ensure_application(slug, urlsplit(redirect_uri).netloc, prov["pk"]))
+
+    # Zugriff wie bei den Proxy-Apps auf die Gruppe beschraenken
+    pol_pk, pmsg = ensure_group_policy(slug, group)
+    print(" ", pmsg)
+    st, app = api("GET", f"/core/applications/{slug}/")
+    print(" ", ensure_binding(app["pk"], pol_pk, slug, group))
+
+    return prov.get("client_id"), prov.get("client_secret")
+
 def main():
     if not TOKEN:
         sys.exit("AUTHENTIK_TOKEN fehlt")
@@ -252,6 +316,19 @@ def main():
         pol_pk, msg = ensure_group_policy(app, group)
         print(" ", msg)
         print(" ", ensure_binding(app_uuid[app], pol_pk, app, group))
+
+    # OIDC-Apps (echtes SSO in der Anwendung selbst)
+    for slug, name, redirect_uri in OIDC_APPS:
+        cid, csec = ensure_oauth_app(slug, name, redirect_uri,
+                                     APP_GROUPS.get(slug, "homelab-users"), authz, invalid)
+        print(f"  client_id={cid}")
+        if csec:
+            print(f"  client_secret={csec}")
+        path = os.environ.get("OIDC_SECRETS_FILE")
+        if path and cid and csec:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(f"SPARKY_OIDC_CLIENT_ID={cid}\nSPARKY_OIDC_CLIENT_SECRET={csec}\n")
+            print(f"  -> {path}")
 
     # Alle Provider dem Embedded Outpost zuordnen
     st, outposts = api("GET", "/outposts/instances/?page_size=50")
