@@ -241,7 +241,7 @@ def ensure_oauth_app(slug, name, redirect_uri, group, authz, invalid):
         "authorization_flow": authz,
         "invalidation_flow": invalid,
         "client_type": "confidential",
-        "redirect_uris": redirect_uri,
+        "redirect_uris": [redirect_uri],
         "signing_key": cert["pk"],
         "include_claims_in_id_token": True,
         "sub_mode": "hashed_user_id",
