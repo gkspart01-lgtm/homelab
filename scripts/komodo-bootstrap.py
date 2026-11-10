@@ -20,6 +20,7 @@ Optionen (Umgebung):
   SYNC_FILE       default komodo/homelab.toml
   WAIT            default 900 (Sekunden auf laufende Stacks warten)
 """
+import base64
 import json
 import os
 import pathlib
@@ -94,6 +95,10 @@ def load_secrets():
         "AK_SECRET_KEY": secrets.token_urlsafe(48),
         "AK_ADMIN_PASS": secrets.token_urlsafe(18),
         "AK_BOOTSTRAP_TOKEN": secrets.token_hex(32),
+        # SparkyFitness: DB-Passwort, 64-stelliger Hex-Key, base64-Secret
+        "SPARKY_FITNESS_DB_PASSWORD": secrets.token_urlsafe(24),
+        "SPARKY_FITNESS_API_ENCRYPTION_KEY": secrets.token_hex(32),
+        "BETTER_AUTH_SECRET": base64.b64encode(secrets.token_bytes(32)).decode(),
     }
     # Explizit gesetztes DOMAIN gewinnt gegen den Wert aus der Secrets-Datei
     if os.environ.get("DOMAIN") and values.get("DOMAIN") != os.environ["DOMAIN"]:
@@ -278,6 +283,10 @@ def main():
     for name in ("AK_DB_PASS", "AK_SECRET_KEY", "AK_ADMIN_EMAIL", "AK_ADMIN_PASS",
                  "AK_BOOTSTRAP_TOKEN"):
         print(f"  {name}:", set_variable(name, vals[name], name != "AK_ADMIN_EMAIL"))
+
+    for name in ("SPARKY_FITNESS_DB_PASSWORD", "SPARKY_FITNESS_API_ENCRYPTION_KEY",
+                 "BETTER_AUTH_SECRET"):
+        print(f"  {name}:", set_variable(name, vals[name], True))
 
     # frp-Zugang nur anlegen, wenn bekannt (VPS-Adresse + Server-Token)
     if os.environ.get("FRP_SERVER_ADDR"):

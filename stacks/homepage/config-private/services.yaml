@@ -16,6 +16,10 @@
         href: https://whoami.hl.mehrwert.icu
         description: Header-Testdienst hinter Forward-Auth
         icon: traefik.png
+    - SparkyFitness:
+        href: https://fitness.hl.mehrwert.icu
+        description: Ernährung & Fitness, hinter SSO
+        icon: sparkyfitness.png
     - SilverBullet (Notizen):
         href: https://notes.hl.mehrwert.icu
         description: Markdown-Wiki, hinter SSO

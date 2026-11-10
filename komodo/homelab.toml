@@ -185,3 +185,25 @@ FAILS_BEFORE_REBOOT = 3
 COOLDOWN_SECONDS = 3600
 CHECK_INTERVAL = 60
 """
+
+# --- 3f. SparkyFitness (Ernaehrung/Fitness) --------------------------------
+[[stack]]
+name = "sparkyfitness"
+description = "SparkyFitness: Ernaehrung/Fitness-Tracking fuer die Familie, hinter authentik"
+tags = ["edge", "prod"]
+deploy = true
+after = ["edge", "authentik"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/sparkyfitness"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+SPARKY_FITNESS_DB_PASSWORD = [[SPARKY_FITNESS_DB_PASSWORD]]
+SPARKY_FITNESS_API_ENCRYPTION_KEY = [[SPARKY_FITNESS_API_ENCRYPTION_KEY]]
+BETTER_AUTH_SECRET = [[BETTER_AUTH_SECRET]]
+"""

@@ -1,0 +1,102 @@
+# SparkyFitness: Ernährung/Fitness-Tracking (Familie), hinter authentik.
+# Vorlage: upstream docker-compose.prod.yml; hier ohne veröffentlichte Ports,
+# mit benannten Volumes und Traefik-Labels.
+services:
+  sparkyfitness-db:
+    image: postgres:18.3-alpine
+    container_name: sparkyfitness-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sparkyfitness_db
+      POSTGRES_USER: sparky
+      POSTGRES_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+      PUID: 1000
+      GUID: 1000
+    volumes:
+      - sparky_db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sparky -d sparkyfitness_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - sparky
+
+  sparkyfitness-server:
+    image: codewithcj/sparkyfitness_server:v1.12.0
+    container_name: sparkyfitness-server
+    restart: unless-stopped
+    environment:
+      SPARKY_FITNESS_DB_HOST: sparkyfitness-db
+      SPARKY_FITNESS_DB_PORT: 5432
+      SPARKY_FITNESS_DB_NAME: sparkyfitness_db
+      SPARKY_FITNESS_DB_USER: sparky
+      SPARKY_FITNESS_DB_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+      SPARKY_FITNESS_APP_DB_USER: sparky_app
+      SPARKY_FITNESS_APP_DB_PASSWORD: ${SPARKY_FITNESS_DB_PASSWORD}
+      SPARKY_FITNESS_FRONTEND_URL: https://fitness.${DOMAIN}
+      SPARKY_FITNESS_API_ENCRYPTION_KEY: ${SPARKY_FITNESS_API_ENCRYPTION_KEY}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      NODE_ENV: production
+      TZ: Europe/Berlin
+      SPARKY_FITNESS_LOG_LEVEL: INFO
+      # Traefik -> Frontend-nginx -> Server: zwei Proxy-Hops
+      SPARKY_FITNESS_TRUSTED_PROXY_HOPS: "2"
+      SPARKY_FITNESS_REAL_IP_HEADER: x-forwarded-for
+      SPARKY_FITNESS_EXTRA_TRUSTED_ORIGINS: https://fitness.${DOMAIN}
+    volumes:
+      - sparky_backup:/app/SparkyFitnessServer/backup
+      - sparky_uploads:/app/SparkyFitnessServer/uploads
+    depends_on:
+      sparkyfitness-db:
+        condition: service_healthy
+    networks:
+      - sparky
+
+  sparkyfitness-frontend:
+    image: codewithcj/sparkyfitness:v1.12.0
+    container_name: sparkyfitness
+    restart: unless-stopped
+    environment:
+      SPARKY_FITNESS_FRONTEND_URL: https://fitness.${DOMAIN}
+      SPARKY_FITNESS_SERVER_HOST: sparkyfitness-server
+      SPARKY_FITNESS_SERVER_PORT: 3010
+      NGINX_LISTEN_PORT: 80
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.fitness.rule=Host(`fitness.${DOMAIN}`)
+      - traefik.http.routers.fitness.entrypoints=websecure
+      - traefik.http.routers.fitness.tls=true
+      - traefik.http.routers.fitness.middlewares=authentik@file,security-headers@file
+      - traefik.http.services.fitness.loadbalancer.server.port=80
+      - traefik.http.routers.fitness-outpost.rule=Host(`fitness.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.fitness-outpost.entrypoints=websecure
+      - traefik.http.routers.fitness-outpost.tls=true
+      - traefik.http.routers.fitness-outpost.priority=100
+      - traefik.http.routers.fitness-outpost.service=authentik@file
+      - traefik.http.routers.fitness-plain.rule=Host(`fitness.${DOMAIN}`)
+      - traefik.http.routers.fitness-plain.entrypoints=webplain
+      - traefik.http.routers.fitness-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.fitness-plain.service=fitness
+      - traefik.http.routers.fitness-plain-outpost.rule=Host(`fitness.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.fitness-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.fitness-plain-outpost.priority=100
+      - traefik.http.routers.fitness-plain-outpost.service=authentik@file
+    depends_on:
+      - sparkyfitness-server
+    networks:
+      - sparky
+      - edge
+
+volumes:
+  sparky_db:
+  sparky_backup:
+  sparky_uploads:
+
+networks:
+  sparky:
+    driver: bridge
+  edge:
+    external: true
