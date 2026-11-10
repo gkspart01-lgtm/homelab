@@ -241,7 +241,8 @@ def ensure_oauth_app(slug, name, redirect_uri, group, authz, invalid):
         "authorization_flow": authz,
         "invalidation_flow": invalid,
         "client_type": "confidential",
-        "redirect_uris": [redirect_uri],
+        # authentik >= 2024.10: Liste von Objekten, nicht Strings
+        "redirect_uris": [{"matching_mode": "strict", "url": redirect_uri}],
         "signing_key": cert["pk"],
         "include_claims_in_id_token": True,
         "sub_mode": "hashed_user_id",
