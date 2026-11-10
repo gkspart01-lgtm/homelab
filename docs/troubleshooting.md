@@ -60,6 +60,40 @@ Komodo liefert `running`, nicht `Running` — case-insensitiv prüfen.
 Genau eine Quelle: `stacks/komodo/secrets.env`. Bei Abweichung
 `docker exec authentik-postgresql psql -U authentik -d authentik -c "ALTER USER authentik WITH PASSWORD '…'"`.
 
+
+## SparkyFitness / SSO (OIDC)
+
+**Nach dem SSO-Login erscheint die Login-Seite der App.**
+Forward-Auth schützt nur die Seite, es meldet niemanden *in* der App an. Die App braucht
+einen eigenen OIDC-Provider (`SPARKY_FITNESS_OIDC_*`). Der authentik-seitige Teil wird von
+`scripts/authentik-bootstrap.py` über `OIDC_APPS` angelegt.
+
+**authentik lehnt den Flow ab: `Invalid grant_type for provider: authorization_code`.**
+Der OAuth2-Provider braucht `grant_types = ["authorization_code", "refresh_token"]`.
+Ohne `property_mappings` (Scope `openid`, `email`, `profile`) fehlen zudem die Claims —
+dann kommt kein Benutzer zustande.
+
+**`invalid_request — The request is otherwise malformed`.**
+Fast immer eine falsche `redirect_uri`. Der Pfad der App lautet
+`/api/auth/sso/callback/<provider-slug>` (better-auth-SSO-Plugin), **nicht**
+`/api/auth/oauth2/callback/...`. Gegenprobe: ein unbekannter `client_id` liefert `400`,
+der richtige muss in den Login-Flow (`302 -> /if/flow/default-authentication-flow/`)
+leiten.
+
+**`redirect_uris` beim Anlegen: `Expected a dictionary, but got str`.**
+Die authentik-API (2024.10+) erwartet eine Liste von Objekten:
+`[{"matching_mode": "strict", "url": "https://…"}]`.
+
+**Prüfen, ob die App den Provider kennt (ohne Login):**
+
+```bash
+docker exec sparkyfitness-server node -e "
+fetch('http://127.0.0.1:3010/api/auth/settings').then(r=>r.text()).then(console.log)"
+# -> {"oidc":{"enabled":true,"providers":[{"id":"authentik",...}],"auto_redirect":false}, ...}
+```
+
+Erst wenn `providers` gefüllt ist, rendert die Login-Seite „Or sign in with → authentik".
+
 ## Home Assistant
 
 **`:8123` liefert `Connection refused`, Observer `:4357` antwortet `200`.**

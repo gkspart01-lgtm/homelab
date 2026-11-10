@@ -77,7 +77,9 @@ APP_GROUPS = parse_app_groups()
 
 def parse_oidc_apps():
     """OIDC-Apps (echtes SSO in der App): "slug|Anzeigename|redirect_uri,..." """
-    raw = os.environ.get("OIDC_APPS", "")
+    # Default: SparkyFitness mit echtem OIDC (App-Login per authentik)
+    raw = os.environ.get("OIDC_APPS",
+                         f"fitness-sso|SparkyFitness|https://fitness.{DOMAIN}/api/auth/sso/callback/authentik")
     out = []
     for item in raw.split(","):
         item = item.strip()

@@ -153,6 +153,25 @@ Ohne Skripte geht es auch — dann dieselben Schritte von Hand:
 
 Die Skripte sparen genau diese Klickarbeit — mehr tun sie nicht.
 
+
+### 5b. `[D]` SSO in der App (OIDC)
+
+Forward-Auth schützt die Seite, meldet aber niemanden *in* SparkyFitness an. Dafür legt
+`scripts/authentik-bootstrap.py` einen OAuth2-Provider an (Default `OIDC_APPS`, kein
+zusätzlicher Aufruf nötig) und die App bekommt die passenden `SPARKY_FITNESS_OIDC_*`-Werte
+aus Komodo-Variablen.
+
+Kontrolle nach dem Deploy:
+
+```bash
+[D] docker exec sparkyfitness-server node -e "
+    fetch('http://127.0.0.1:3010/api/auth/settings').then(r=>r.text()).then(console.log)"
+# erwartet: "oidc":{"enabled":true,"providers":[{"id":"authentik",...}]}
+```
+
+Auf der Login-Seite erscheint dann „Or sign in with → authentik". E-Mail/Passwort bleibt
+als Notausgang aktiv (`SPARKY_FITNESS_FORCE_EMAIL_LOGIN=true`).
+
 ## 6. `[W]` Prüfen
 
 ```bash
