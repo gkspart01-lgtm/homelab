@@ -10,6 +10,7 @@ als Komodo-Variablen. Quelle der Wahrheit für „was läuft" ist `komodo/homela
 | `whoami/` | Testdienst für Routing + SSO | `https://whoami.<DOMAIN>` |
 | `homepage/` | Dienstübersicht, zwei Instanzen (`config-public`, `config-private`) | `https://<DOMAIN>`, `https://home.<DOMAIN>` |
 | `silverbullet/` | Notizen (Markdown), Volume `silverbullet_space` | `https://notes.<DOMAIN>` |
+| `sparkyfitness/` | Ernährung/Fitness-Tracking (PostgreSQL + Server + Frontend v1.12.0) | `https://fitness.<DOMAIN>` |
 | `rathole/` | Tunnel zum VPS (Noise, TCP) | ausgehend `:8443` |
 | `hawatch/` | Watchdog für die HA-VM (Poll + PVE-Reboot) | intern |
 | `komodo/` | Deployment-Plattform (Core, Periphery, MongoDB) | `https://komodo.<DOMAIN>` |

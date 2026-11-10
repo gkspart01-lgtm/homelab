@@ -19,6 +19,7 @@ Internet ─► VPS (Traefik, Let's Encrypt) ─► rathole ─► docker01: Tra
 | Komodo | https://komodo.hl.mehrwert.icu/ | SSO · `homelab-admins` |
 | authentik | https://auth.hl.mehrwert.icu/ | Login |
 | SilverBullet (Notizen) | https://notes.hl.mehrwert.icu/ | SSO · `homelab-users` |
+| SparkyFitness | https://fitness.hl.mehrwert.icu/ | SSO · `homelab-users` |
 | whoami (Testdienst) | https://whoami.hl.mehrwert.icu/ | SSO |
 | Home Assistant | http://192.168.178.74:8123 | nur LAN, eigenes Login |
 
