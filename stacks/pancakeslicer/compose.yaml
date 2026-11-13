@@ -1,0 +1,50 @@
+# PancakeSlicer: Non-planar Slicer (OrcaSlicer-Engine) als Web-App.
+# Zugriff ausschliesslich ueber authentik-Forward-Auth; die App hat kein eigenes Login.
+# Wichtig: Slice-Fortschritt laeuft ueber Server-Sent-Events, Traefik darf nicht puffern.
+services:
+  pancakeslicer:
+    image: zimengxiong/pancakeslicer:0.4.8
+    container_name: pancakeslicer
+    restart: unless-stopped
+    environment:
+      ORCA_WEB_MAX_JOBS: "1"                 # ein Slice gleichzeitig (docker01 hat 6 GB)
+      ORCA_WEB_PRINTER_NETWORK: lan          # Drucker im LAN erreichbar machen
+      ORCA_WEB_TRUSTED_PROXIES: 172.16.0.0/12 # Traefik-Docker-Netz, X-Forwarded-For wird geglaubt
+      PANCAKE_STAGE_CACHE_MAX_MB: "1024"     # Zwischenstaende der Engine (verwerfbar)
+    volumes:
+      - pancake_data:/data                   # Projekte, Profile, Drucker, Jobs
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 3g
+    networks:
+      - edge
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=edge
+      - traefik.http.routers.slicer.rule=Host(`slicer.${DOMAIN}`)
+      - traefik.http.routers.slicer.entrypoints=websecure
+      - traefik.http.routers.slicer.tls=true
+      - traefik.http.routers.slicer.middlewares=authentik@file,security-headers@file
+      - traefik.http.services.slicer.loadbalancer.server.port=6868
+      - traefik.http.routers.slicer-outpost.rule=Host(`slicer.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.slicer-outpost.entrypoints=websecure
+      - traefik.http.routers.slicer-outpost.tls=true
+      - traefik.http.routers.slicer-outpost.priority=100
+      - traefik.http.routers.slicer-outpost.service=authentik@file
+      - traefik.http.routers.slicer-plain.rule=Host(`slicer.${DOMAIN}`)
+      - traefik.http.routers.slicer-plain.entrypoints=webplain
+      - traefik.http.routers.slicer-plain.middlewares=tunnel-headers@file,authentik@file
+      - traefik.http.routers.slicer-plain.service=slicer
+      - traefik.http.routers.slicer-plain-outpost.rule=Host(`slicer.${DOMAIN}`) && PathPrefix(`/outpost.goauthentik.io/`)
+      - traefik.http.routers.slicer-plain-outpost.entrypoints=webplain
+      - traefik.http.routers.slicer-plain-outpost.priority=100
+      - traefik.http.routers.slicer-plain-outpost.service=authentik@file
+
+volumes:
+  pancake_data:
+
+networks:
+  edge:
+    external: true

@@ -16,6 +16,10 @@
         href: https://whoami.hl.mehrwert.icu
         description: Header-Testdienst hinter Forward-Auth
         icon: traefik.png
+    - PancakeSlicer:
+        href: https://slicer.hl.mehrwert.icu
+        description: 3D-Slicer (non-planar), hinter SSO
+        icon: pancake.png
     - SparkyFitness:
         href: https://fitness.hl.mehrwert.icu
         description: Ernährung & Fitness, hinter SSO

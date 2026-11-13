@@ -209,3 +209,22 @@ BETTER_AUTH_SECRET = [[BETTER_AUTH_SECRET]]
 SPARKY_OIDC_CLIENT_ID = [[SPARKY_OIDC_CLIENT_ID]]
 SPARKY_OIDC_CLIENT_SECRET = [[SPARKY_OIDC_CLIENT_SECRET]]
 """
+
+# --- 3g. PancakeSlicer (3D-Slicer) -----------------------------------------
+[[stack]]
+name = "pancakeslicer"
+description = "PancakeSlicer: non-planarer 3D-Slicer als Web-App, hinter authentik"
+tags = ["edge", "prod"]
+deploy = true
+after = ["edge", "authentik"]
+
+[stack.config]
+server = "docker01"
+git_provider = "github.com"
+repo = "gkspart01-lgtm/homelab"
+branch = "main"
+run_directory = "stacks/pancakeslicer"
+file_paths = ["compose.yaml"]
+environment = """
+DOMAIN = [[DOMAIN]]
+"""
